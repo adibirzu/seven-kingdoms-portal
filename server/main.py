@@ -751,13 +751,28 @@ async def got_dragons(request: Request, url: str = "http://meereen.essos.local/a
     backend.push_log("SECURITY", f"CTF_GOT_SSRF: Fetching dragon eggs from {url}")
     tracer = trace.get_tracer(__name__)
     
+    is_ssrf = "169.254.169.254" in url or "meereen" in url or "10.0." in url or "192.168." in url
     try:
         async with httpx.AsyncClient(timeout=2.0) as client:
             resp = await client.get(url)
+            if is_ssrf:
+                # SSRF succeeded — the app fetched an internal resource
+                with tracer.start_as_current_span("ctf.ssrf", attributes={
+                    "security.attack.type": "ssrf",
+                    "security.attack.severity": "critical",
+                    "security.attack.owasp": "A10:2021",
+                    "security.attack.mitre_id": "T1090",
+                    "security.ssrf.target_url": url,
+                    "security.ssrf.response_code": resp.status_code,
+                    "security.source_ip": request.client.host,
+                    "security.flag_captured": True,
+                }) as span:
+                    backend.push_metric("CTFFlagFound", 1.0, {"type": "SSRF_GOT"})
+                    return {"status": "success", "ssrf_response": resp.text[:500], "flag": "FLAG{M07H3R_0F_DR4G0N5_55RF}"}
             return {"status": "success", "data": resp.text}
     except Exception as e:
-        # Fallback trace generation for SSRF simulation
-        if "meereen.essos.local" in url or "169.254.169.254" in url:
+        # Fallback trace generation for SSRF simulation when target unreachable
+        if is_ssrf:
             backend.push_metric("CTFFlagFound", 1.0, {"type": "SSRF_GOT"})
             with tracer.start_as_current_span(
                 "HTTP GET",
