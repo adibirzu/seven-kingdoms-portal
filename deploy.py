@@ -21,6 +21,9 @@ Usage:
   python deploy.py --component all --dry-run      # Preview without executing
   python deploy.py --component c4 --app-mode oke  # Deploy app in OKE mode
   python deploy.py --list-steps c4                # List steps for a component
+
+Stack mode (ORM creates infra, deploy.py handles the rest):
+  python deploy.py --component c2,c3,c4,c5 --app-mode oke --no-deps
 """
 
 import argparse
@@ -224,6 +227,11 @@ Examples:
         action="store_true",
         help="Enable verbose logging",
     )
+    parser.add_argument(
+        "--no-deps",
+        action="store_true",
+        help="Skip dependency resolution (for stack mode where infra is pre-created)",
+    )
 
     args = parser.parse_args()
 
@@ -311,7 +319,12 @@ Examples:
                 sys.exit(1)
 
         action = "destroy" if args.destroy else "deploy"
-        if action == "destroy":
+        if args.no_deps:
+            # Stack mode: skip dependency resolution, deploy only requested components
+            # Sort by component number for correct order
+            ordered = sorted(components, key=lambda x: int(x.replace("c", "")),
+                             reverse=(action == "destroy"))
+        elif action == "destroy":
             ordered = list(reversed(topological_sort(components)))
         else:
             ordered = topological_sort(components)

@@ -1,0 +1,227 @@
+title: "Seven Kingdoms Portal — Security Testing Platform"
+description: |
+  Deploy a complete security testing platform with GOADv3 Active Directory lab,
+  vulnerable web application, and full OCI observability integration.
+  All infrastructure (VCN, compute, OKE, GOAD VMs) is created automatically.
+schemaVersion: 1.1.0
+version: "1.0"
+locale: "en"
+
+variableGroups:
+  - title: "OCI Configuration"
+    variables:
+      - tenancy_ocid
+      - region
+      - compartment_ocid
+      - current_user_ocid
+
+  - title: "Platform Deployment Mode"
+    variables:
+      - app_deploy_mode
+      - deploy_goad
+      - deploy_waf
+      - deploy_observability
+
+  - title: "Compute & SSH"
+    variables:
+      - ssh_public_key
+      - deployer_shape
+      - deployer_ocpus
+      - deployer_memory_gb
+
+  - title: "Network Configuration"
+    variables:
+      - vcn_cidr
+      - public_subnet_cidr
+      - private_subnet_cidr
+
+  - title: "OKE Configuration"
+    visible:
+      or:
+        - eq:
+            - app_deploy_mode
+            - "oke"
+    variables:
+      - oke_node_pool_size
+      - oke_node_shape
+      - oke_node_ocpus
+      - oke_node_memory_gb
+
+  - title: "GOAD AD Lab Configuration"
+    visible: deploy_goad
+    variables:
+      - goad_vcn_cidr
+      - goad_vm_shape
+      - goad_vm_ocpus
+      - goad_vm_memory_gb
+
+  - title: "Application Settings"
+    variables:
+      - app_port
+      - portal_jwt_secret
+
+variables:
+  tenancy_ocid:
+    title: "Tenancy OCID"
+    type: string
+    required: true
+
+  region:
+    title: "Region"
+    type: oci:identity:region:name
+    required: true
+
+  compartment_ocid:
+    title: "Compartment"
+    description: "Compartment where all resources will be created"
+    type: oci:identity:compartment:id
+    required: true
+
+  current_user_ocid:
+    title: "Current User OCID"
+    description: "OCID of the user running this stack (auto-populated by ORM)"
+    type: string
+    required: true
+
+  # --- Platform Mode ---
+
+  app_deploy_mode:
+    title: "Application Deployment Mode"
+    description: "How to deploy the vulnerable web application"
+    type: enum
+    enum:
+      - oke
+      - vm
+      - docker
+    default: "oke"
+
+  deploy_goad:
+    title: "Deploy GOADv3 Active Directory Lab"
+    description: "Deploys 5 Windows VMs with a multi-domain AD forest (sevenkingdoms.local, north.sevenkingdoms.local, essos.local). Requires significant resources."
+    type: boolean
+    default: true
+
+  deploy_waf:
+    title: "Deploy WAF (Web Application Firewall)"
+    description: "Attach WAF with OWASP protection rules to the load balancer"
+    type: boolean
+    default: true
+
+  deploy_observability:
+    title: "Deploy Observability Stack"
+    description: "Create APM domain, Log Analytics, and Monitoring alarms"
+    type: boolean
+    default: true
+
+  # --- Compute ---
+
+  ssh_public_key:
+    title: "SSH Public Key"
+    description: "SSH key for accessing the deployer VM and all created instances"
+    type: oci:core:ssh:publickey
+    required: true
+
+  deployer_shape:
+    title: "Deployer VM Shape"
+    description: "Compute shape for the deployer/build VM"
+    type: oci:core:instanceshape:name
+    default: "VM.Standard.E4.Flex"
+
+  deployer_ocpus:
+    title: "Deployer OCPUs"
+    type: integer
+    default: 2
+    minimum: 1
+    maximum: 4
+
+  deployer_memory_gb:
+    title: "Deployer Memory (GB)"
+    type: integer
+    default: 16
+    minimum: 8
+    maximum: 32
+
+  # --- Network ---
+
+  vcn_cidr:
+    title: "App VCN CIDR"
+    description: "CIDR block for the application VCN"
+    type: string
+    default: "10.0.0.0/16"
+
+  public_subnet_cidr:
+    title: "Public Subnet CIDR"
+    type: string
+    default: "10.0.1.0/24"
+
+  private_subnet_cidr:
+    title: "Private Subnet CIDR"
+    type: string
+    default: "10.0.2.0/24"
+
+  # --- OKE ---
+
+  oke_node_pool_size:
+    title: "OKE Node Pool Size"
+    type: integer
+    default: 2
+    minimum: 1
+    maximum: 5
+
+  oke_node_shape:
+    title: "OKE Node Shape"
+    type: oci:core:instanceshape:name
+    default: "VM.Standard.E4.Flex"
+
+  oke_node_ocpus:
+    title: "OKE Node OCPUs"
+    type: integer
+    default: 2
+    minimum: 1
+    maximum: 4
+
+  oke_node_memory_gb:
+    title: "OKE Node Memory (GB)"
+    type: integer
+    default: 16
+    minimum: 8
+    maximum: 32
+
+  # --- GOAD ---
+
+  goad_vcn_cidr:
+    title: "GOAD VCN CIDR"
+    description: "CIDR for the GOAD Active Directory VCN"
+    type: string
+    default: "192.168.0.0/16"
+
+  goad_vm_shape:
+    title: "GOAD Windows VM Shape"
+    type: oci:core:instanceshape:name
+    default: "VM.Standard.E5.Flex"
+
+  goad_vm_ocpus:
+    title: "GOAD VM OCPUs"
+    type: integer
+    default: 2
+
+  goad_vm_memory_gb:
+    title: "GOAD VM Memory (GB)"
+    type: integer
+    default: 32
+    minimum: 16
+    maximum: 64
+
+  # --- App ---
+
+  app_port:
+    title: "Application Port"
+    type: integer
+    default: 9010
+
+  portal_jwt_secret:
+    title: "Portal JWT Secret"
+    description: "Secret key for JWT token signing (auto-generated if left empty)"
+    type: password
+    required: false
+    default: ""
