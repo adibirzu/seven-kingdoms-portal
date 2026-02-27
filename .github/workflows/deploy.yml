@@ -1,0 +1,32 @@
+name: Deploy to OCI VM
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy Application
+    runs-on: ubuntu-latest
+    environment: SSH_PRIVATE_KEY
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/new_id_rsa
+          chmod 600 ~/.ssh/new_id_rsa
+          ssh-keyscan -H ${{ secrets.BASTION_IP }} >> ~/.ssh/known_hosts
+
+      - name: Run Deployment Script
+        env:
+          SSH_KEY: /home/runner/.ssh/new_id_rsa
+          INSTANCE_IP: ${{ secrets.INSTANCE_IP }}
+          BASTION_IP: ${{ secrets.BASTION_IP }}
+          INSTANCE_ID: ${{ secrets.INSTANCE_ID }}
+        run: |
+          chmod +x deploy/scripts/update-app-code.sh
+          ./deploy/scripts/update-app-code.sh

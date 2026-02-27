@@ -1,0 +1,337 @@
+/* Seven Kingdoms App - Security Demo Styles */
+
+#module-sevenkingdoms {
+    padding: 24px;
+    max-width: 1600px;
+    margin: 0 auto;
+}
+
+.sk-header {
+    margin-bottom: 32px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 24px;
+}
+
+.sk-title {
+    font-size: 2rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, #FF416C 0%, #FF4B2B 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    margin: 0 0 8px 0;
+}
+
+.sk-subtitle {
+    color: var(--text-muted);
+    font-size: 1.1rem;
+}
+
+.sk-grid {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 24px;
+}
+
+/* Sidebar / Config Panel */
+.sk-sidebar {
+    background: var(--surface-1);
+    border-radius: 12px;
+    padding: 20px;
+    height: fit-content;
+    border: 1px solid var(--border-color);
+}
+
+.sk-card {
+    background: var(--surface-1);
+    border-radius: 12px;
+    padding: 24px;
+    border: 1px solid var(--border-color);
+    margin-bottom: 24px;
+}
+
+.sk-section-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sk-config-item {
+    margin-bottom: 16px;
+}
+
+.sk-label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+}
+
+.sk-input {
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+}
+
+.sk-input:focus {
+    outline: none;
+    border-color: #FF4B2B;
+}
+
+.sk-btn {
+    width: 100%;
+    padding: 10px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.sk-btn-primary {
+    background: linear-gradient(135deg, #FF416C 0%, #FF4B2B 100%);
+    color: white;
+    box-shadow: 0 4px 12px rgba(255, 75, 43, 0.2);
+}
+
+.sk-btn-primary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(255, 75, 43, 0.3);
+}
+
+.sk-btn-secondary {
+    background: var(--surface-2);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+.sk-btn-secondary:hover {
+    background: var(--surface-hover);
+}
+
+/* Attack Dashboard */
+.sk-dashboard {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.sk-stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+}
+
+.sk-stat-card {
+    background: var(--surface-1);
+    padding: 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    text-align: center;
+}
+
+.sk-stat-value {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    display: block;
+    margin-bottom: 4px;
+}
+
+.sk-stat-label {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+/* Simulation Batches */
+.sk-simulation-area {
+    background: var(--surface-1);
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+}
+
+.sk-toolbar {
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(0,0,0,0.1);
+}
+
+.sk-batch-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    padding: 20px;
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.sk-attack-card {
+    background: var(--surface-2);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 16px;
+    transition: transform 0.2s;
+    position: relative;
+    overflow: hidden;
+}
+
+.sk-attack-card:hover {
+    transform: translateY(-2px);
+    border-color: #FF4B2B;
+}
+
+.sk-attack-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+
+.sk-attack-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.95rem;
+}
+
+.sk-attack-id {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    background: rgba(255,255,255,0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.sk-attack-desc {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+.sk-attack-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255,255,255,0.05);
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-muted);
+}
+
+.status-dot.running {
+    background: #F59E0B;
+    box-shadow: 0 0 8px #F59E0B;
+    animation: pulse 1s infinite;
+}
+
+.status-dot.detected {
+    background: #EF4444;
+    box-shadow: 0 0 8px #EF4444;
+}
+
+.status-dot.blocked {
+    background: #10B981;
+}
+
+/* Console/Log Viewer */
+.sk-console {
+    background: #0f1117;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    height: 300px;
+    overflow-y: auto;
+    padding: 16px;
+    margin-top: 24px;
+}
+
+.log-entry {
+    margin-bottom: 4px;
+    display: flex;
+    gap: 8px;
+}
+
+.log-time {
+    color: var(--text-muted);
+}
+
+.log-type {
+    font-weight: 600;
+}
+
+.log-type.INFO { color: #3B82F6; }
+.log-type.WARN { color: #F59E0B; }
+.log-type.ALERT { color: #EF4444; }
+.log-msg { color: var(--text-primary); }
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+/* Publish Modal */
+.sk-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s;
+}
+
+.sk-modal.active {
+    opacity: 1;
+    pointer-events: all;
+}
+
+.sk-modal-content {
+    background: var(--surface-1);
+    padding: 32px;
+    border-radius: 16px;
+    max-width: 500px;
+    width: 90%;
+    text-align: center;
+    border: 1px solid var(--border-color);
+    transform: translateY(20px);
+    transition: transform 0.3s;
+}
+
+.sk-modal.active .sk-modal-content {
+    transform: translateY(0);
+}

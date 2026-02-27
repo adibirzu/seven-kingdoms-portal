@@ -1,0 +1,54 @@
+{
+  "_comment": "OCI Container Instance configuration template. Fill in your values and deploy with: oci container-instances container-instance create --from-json file://container-instance.json",
+  "displayName": "seven-kingdoms-portal",
+  "compartmentId": "<COMPARTMENT_OCID>",
+  "availabilityDomain": "<AD_NAME>",
+  "shape": "CI.Standard.E4.Flex",
+  "shapeConfig": {
+    "ocpus": 1,
+    "memoryInGBs": 4
+  },
+  "containers": [
+    {
+      "displayName": "portal",
+      "imageUrl": "<REGION>.ocir.io/<NAMESPACE>/observability-app:<TAG>",
+      "environmentVariables": {
+        "ENVIRONMENT": "production",
+        "APP_PORT": "9010",
+        "APP_WORKERS": "4",
+        "OCI_AUTH_MODE": "resource_principal",
+        "OCI_APM_ENDPOINT": "<APM_ENDPOINT_URL>",
+        "OCI_APM_PUBLIC_DATAKEY": "<APM_PUBLIC_KEY>",
+        "OCI_APM_PRIVATE_DATAKEY": "<APM_PRIVATE_KEY>",
+        "OCI_LOG_OCID": "<LOG_OCID>",
+        "OCI_COMPARTMENT_OCID": "<COMPARTMENT_OCID>",
+        "OCI_MONITORING_NAMESPACE": "CustomAttackMetrics",
+        "PORTAL_JWT_SECRET": "<JWT_SECRET>"
+      },
+      "healthChecks": [
+        {
+          "healthCheckType": "HTTP",
+          "name": "portal-liveness",
+          "port": 9010,
+          "path": "/health",
+          "intervalInSeconds": 30,
+          "timeoutInSeconds": 10,
+          "failureThreshold": 3
+        }
+      ],
+      "resourceConfig": {
+        "vcpusLimit": 1.0,
+        "memoryLimitInGBs": 4.0
+      }
+    }
+  ],
+  "vnics": [
+    {
+      "subnetId": "<SUBNET_OCID>",
+      "isPublicIpAssigned": false,
+      "nsgIds": ["<NSG_OCID>"]
+    }
+  ],
+  "gracePeriodInSeconds": 30,
+  "containerRestartPolicy": "ALWAYS"
+}
