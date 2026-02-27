@@ -462,6 +462,108 @@
           </form>
         </div>
       </div>
+
+      <!-- ── GOAD Webshop Module ───────────────────── -->
+      <div class="module-card module-card-wide" id="mod-shop">
+        <div class="module-header">
+          <div class="module-title-row">
+            <span class="module-icon">&#9876;</span>
+            <h3>Seven Kingdoms Marketplace</h3>
+          </div>
+          <div class="card-badges">
+            <span class="badge badge-critical">MSSQL</span>
+            <span class="badge badge-high">SQLi</span>
+            <span class="badge badge-otel">IDOR</span>
+          </div>
+        </div>
+
+        <div class="module-body">
+          <form class="lab-form" data-url-template="/portal/api/shop/items?category={category}&search={search}&house={house}" data-method="GET">
+            <h4 class="form-section-title">Browse Inventory</h4>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Category</label>
+                <select name="category">
+                  <option value="">All Categories</option>
+                  <option value="weapons">Weapons</option>
+                  <option value="horses">Horses</option>
+                  <option value="ships">Ships</option>
+                  <option value="citadels">Citadels</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Search</label>
+                <input name="search" type="text" placeholder="e.g. Valyrian, dragon..." autocomplete="off">
+              </div>
+              <div class="form-group">
+                <label>House</label>
+                <input name="house" type="text" placeholder="e.g. Stark, Lannister" autocomplete="off">
+              </div>
+            </div>
+            <button type="submit" class="form-btn">Browse Items</button>
+          </form>
+
+          <div class="module-divider"></div>
+
+          <form class="lab-form" data-url-template="/portal/api/shop/items/{item_id}" data-method="GET">
+            <h4 class="form-section-title">Item Detail (IDOR)</h4>
+            <div class="form-group">
+              <label>Item ID</label>
+              <input name="item_id" type="text" placeholder="1-15" value="1">
+            </div>
+            <button type="submit" class="form-btn">View Item</button>
+          </form>
+
+          <div class="module-divider"></div>
+
+          <form class="lab-form" data-url="/portal/api/shop/cart/add" data-method="POST" data-content="json">
+            <h4 class="form-section-title">Add to Cart</h4>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Username</label>
+                <input name="username" type="text" placeholder="Your username" autocomplete="off">
+              </div>
+              <div class="form-group">
+                <label>Item ID</label>
+                <input name="item_id" type="text" placeholder="1-15" value="2">
+              </div>
+              <div class="form-group">
+                <label>Quantity</label>
+                <input name="quantity" type="number" value="1" min="1">
+              </div>
+            </div>
+            <button type="submit" class="form-btn">Add to Cart</button>
+          </form>
+
+          <div class="module-divider"></div>
+
+          <form class="lab-form" data-url="/portal/api/shop/purchase" data-method="POST" data-content="json">
+            <h4 class="form-section-title">Purchase (Price Manipulation)</h4>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Username</label>
+                <input name="username" type="text" placeholder="Your username" autocomplete="off">
+              </div>
+              <div class="form-group">
+                <label>Override Total</label>
+                <input name="total" type="number" placeholder="0 = server-calculated" value="0">
+              </div>
+            </div>
+            <button type="submit" class="form-btn form-btn-secondary">Complete Purchase</button>
+          </form>
+
+          <div class="module-divider"></div>
+
+          <form class="lab-form" data-url-template="/portal/api/shop/orders?username={username}" data-method="GET">
+            <h4 class="form-section-title">Order History (SQLi / IDOR)</h4>
+            <div class="form-group">
+              <label>Username</label>
+              <input name="username" type="text" placeholder="e.g. admin, ' OR 1=1 --" autocomplete="off">
+            </div>
+            <button type="submit" class="form-btn">View Orders</button>
+          </form>
+        </div>
+      </div>
     </div>
 
     <!-- ── Response Inspector ─────────────────────── -->
@@ -545,6 +647,11 @@ and hidden information that can be used for exploitation.</pre>
             <tr><td><code>/portal/api/log</code></td><td>POST</td><td>Log Injection</td><td>A09</td><td>T1070</td><td><span class="badge badge-medium">Medium</span></td></tr>
             <tr><td><code>/api/v1/got/wildlings</code></td><td>GET</td><td>SQL Injection (GOAD MSSQL)</td><td>A03</td><td>T1190</td><td><span class="badge badge-critical">Critical</span></td></tr>
             <tr><td><code>/api/v1/got/dragons</code></td><td>GET</td><td>SSRF (GOAD Network)</td><td>A10</td><td>T1090</td><td><span class="badge badge-critical">Critical</span></td></tr>
+            <tr><td><code>/portal/api/shop/items</code></td><td>GET</td><td>SQLi in Search (MSSQL)</td><td>A03</td><td>T1190</td><td><span class="badge badge-critical">Critical</span></td></tr>
+            <tr><td><code>/portal/api/shop/items/{id}</code></td><td>GET</td><td>IDOR (Secret Items)</td><td>A01</td><td>T1078</td><td><span class="badge badge-high">High</span></td></tr>
+            <tr><td><code>/portal/api/shop/purchase</code></td><td>POST</td><td>Price Manipulation</td><td>A04</td><td>T1565</td><td><span class="badge badge-critical">Critical</span></td></tr>
+            <tr><td><code>/portal/api/shop/orders</code></td><td>GET</td><td>SQLi + IDOR (MSSQL)</td><td>A03</td><td>T1190</td><td><span class="badge badge-critical">Critical</span></td></tr>
+            <tr><td><code>/portal/api/shop/cart</code></td><td>GET</td><td>Cart IDOR</td><td>A01</td><td>T1078</td><td><span class="badge badge-high">High</span></td></tr>
           </tbody>
         </table>
       </div>
@@ -599,6 +706,13 @@ and hidden information that can be used for exploitation.</pre>
             <p>If GOAD Active Directory is reachable, test SQL injection against the Castle Black MSSQL database. Try LDAP authentication against the three domain controllers. Explore the dragon egg tracker for SSRF against the GOAD network.</p>
           </div>
         </div>
+        <div class="guide-step">
+          <div class="guide-step-num">7</div>
+          <div class="guide-step-content">
+            <h4>Marketplace Exploitation</h4>
+            <p>The Seven Kingdoms Marketplace connects to GOAD MSSQL. Browse items, search with SQL injection payloads, view secret items via IDOR (items 9, 12). Try price manipulation: add items to cart, then submit a purchase with a fake <code>total</code>. Check order history with <code>' OR 1=1--</code> to dump all orders from the MSSQL database.</p>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -616,7 +730,11 @@ and hidden information that can be used for exploitation.</pre>
           </div>
           <div class="hint-card" onclick="revealHint(this)">
             <h4>SQL Injection</h4>
-            <div class="hint-hidden">Treasury search: <code>' OR 1=1--</code><br>Wildlings: <code>Tormund' UNION SELECT name,1,1 FROM sysobjects--</code></div>
+            <div class="hint-hidden">Treasury search: <code>' OR 1=1--</code><br>Wildlings: <code>Tormund' UNION SELECT name,1,1 FROM sysobjects--</code><br>Shop search: <code>' UNION SELECT * FROM shop_orders--</code></div>
+          </div>
+          <div class="hint-card" onclick="revealHint(this)">
+            <h4>Marketplace Exploits</h4>
+            <div class="hint-hidden">IDOR: View items 9 and 12 for hidden flags.<br>Price manipulation: POST purchase with <code>{"username":"you","total":1}</code>.<br>Orders SQLi: <code>' OR 1=1--</code> to dump all orders.</div>
           </div>
           <div class="hint-card" onclick="revealHint(this)">
             <h4>IDOR</h4>

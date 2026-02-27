@@ -1802,6 +1802,512 @@ async def goad_dcsync_sim(request: Request, target: str = "Administrator"):
 
 
 # ═══════════════════════════════════════════════════════════════════
+# GOAD WEBSHOP — Seven Kingdoms Marketplace
+# Full MSSQL-backed shop with OTel tracing and Log Analytics correlation
+# ═══════════════════════════════════════════════════════════════════
+
+# In-memory shop catalog (used when GOAD MSSQL is unreachable)
+SHOP_CATALOG = [
+    {"id": 1, "name": "Valyrian Steel Sword", "category": "weapons", "price": 15000, "house": "Stark",
+     "description": "Ice — the ancestral greatsword of House Stark, forged in Old Valyria.", "stock": 1, "seller": "jon.snow"},
+    {"id": 2, "name": "Dragonglass Daggers (dozen)", "category": "weapons", "price": 200, "house": "Targaryen",
+     "description": "Obsidian blades from Dragonstone. Effective against White Walkers.", "stock": 144, "seller": "daenerys.targaryen"},
+    {"id": 3, "name": "Wildfire Cask", "category": "weapons", "price": 5000, "house": "Lannister",
+     "description": "Volatile green substance. Handle with extreme caution.", "stock": 20, "seller": "cersei.lannister"},
+    {"id": 4, "name": "War Horse — Destrier", "category": "horses", "price": 3000, "house": "Baratheon",
+     "description": "A trained warhorse from the Stormlands. Battle-hardened.", "stock": 12, "seller": "admin"},
+    {"id": 5, "name": "Sand Steed", "category": "horses", "price": 4500, "house": "Martell",
+     "description": "Fast and agile Dornish sand steed. Perfect for desert warfare.", "stock": 8, "seller": "admin"},
+    {"id": 6, "name": "Dothraki Stallion", "category": "horses", "price": 2000, "house": "Targaryen",
+     "description": "A fierce stallion from the Dothraki Sea. Unmatched endurance.", "stock": 30, "seller": "daenerys.targaryen"},
+    {"id": 7, "name": "War Galley", "category": "ships", "price": 50000, "house": "Greyjoy",
+     "description": "Ironborn longship with 100 oars. Raids and naval warfare.", "stock": 5, "seller": "admin"},
+    {"id": 8, "name": "Swan Ship", "category": "ships", "price": 80000, "house": "Martell",
+     "description": "Elegant trading vessel from the Summer Isles.", "stock": 2, "seller": "admin"},
+    {"id": 9, "name": "Braavosi Galeas", "category": "ships", "price": 120000, "house": "Braavos",
+     "description": "Iron Bank-financed merchant galley. SECRET: FLAG{SH0P_1D0R_S3CR3T}", "stock": 1, "seller": "tyrion.lannister"},
+    {"id": 10, "name": "Winterfell Keep", "category": "citadels", "price": 500000, "house": "Stark",
+     "description": "The ancient seat of House Stark. Crypts included.", "stock": 1, "seller": "jon.snow"},
+    {"id": 11, "name": "Casterly Rock", "category": "citadels", "price": 750000, "house": "Lannister",
+     "description": "The richest fortress in Westeros. Gold mines beneath.", "stock": 1, "seller": "cersei.lannister"},
+    {"id": 12, "name": "Dragonstone Fortress", "category": "citadels", "price": 600000, "house": "Targaryen",
+     "description": "Volcanic island stronghold. Dragonglass deposits. FLAG{DR4G0N570N3_M1N3}", "stock": 1, "seller": "daenerys.targaryen"},
+    {"id": 13, "name": "The Wall — Section Pass", "category": "citadels", "price": 1000, "house": "Night's Watch",
+     "description": "Passage rights through Castle Black. Limited availability.", "stock": 100, "seller": "jon.snow"},
+    {"id": 14, "name": "Scorpion Ballista", "category": "weapons", "price": 8000, "house": "Lannister",
+     "description": "Anti-dragon siege weapon. Tested against Drogon.", "stock": 3, "seller": "cersei.lannister"},
+    {"id": 15, "name": "Unsullied Armor Set", "category": "weapons", "price": 1500, "house": "Targaryen",
+     "description": "Standard-issue armor from Astapor. Includes spear and shield.", "stock": 50, "seller": "daenerys.targaryen"},
+]
+
+# In-memory orders and cart (per-user)
+SHOP_ORDERS: list[dict] = []
+SHOP_CARTS: dict[str, list[dict]] = {}  # username -> [{item_id, quantity}]
+
+# SQL for MSSQL table bootstrap
+_SHOP_DDL = """
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'shop_items')
+CREATE TABLE shop_items (
+    id INT PRIMARY KEY, name NVARCHAR(200), category NVARCHAR(50),
+    price INT, house NVARCHAR(100), description NVARCHAR(500),
+    stock INT, seller NVARCHAR(100)
+);
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'shop_orders')
+CREATE TABLE shop_orders (
+    id INT IDENTITY(1,1) PRIMARY KEY, buyer NVARCHAR(100),
+    item_id INT, item_name NVARCHAR(200), quantity INT, total_price INT,
+    order_date DATETIME DEFAULT GETDATE(), status NVARCHAR(50) DEFAULT 'confirmed'
+);
+"""
+
+
+def _mssql_shop_bootstrap(server_name: str = "castelblack") -> bool:
+    """Bootstrap the shop tables in GOAD MSSQL if they don't exist."""
+    srv = MSSQL_SERVERS.get(server_name)
+    if not srv:
+        return False
+    conn = None
+    try:
+        conn = pymssql.connect(
+            server=srv["host"], port=srv["port"],
+            user=GOAD_MSSQL_USER, password=GOAD_MSSQL_PASSWORD,
+            database=srv["db"], login_timeout=3, timeout=5,
+        )
+        cursor = conn.cursor()
+        cursor.execute(_SHOP_DDL)
+        # Seed items if table is empty
+        cursor.execute("SELECT COUNT(*) FROM shop_items")
+        count = cursor.fetchone()[0]
+        if count == 0:
+            for item in SHOP_CATALOG:
+                cursor.execute(
+                    "INSERT INTO shop_items (id, name, category, price, house, description, stock, seller) "
+                    "VALUES (%d, %s, %s, %d, %s, %s, %d, %s)",
+                    (item["id"], item["name"], item["category"], item["price"],
+                     item["house"], item["description"], item["stock"], item["seller"]),
+                )
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.debug(f"Shop bootstrap on {server_name} failed: {e}")
+        return False
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
+# Flag: try bootstrap on import (non-blocking)
+_shop_bootstrapped = False
+
+
+@router.get("/api/shop/items")
+async def shop_list_items(request: Request, category: str = "", search: str = "", house: str = ""):
+    """Browse the Seven Kingdoms Marketplace.
+
+    Queries GOAD MSSQL when reachable, falls back to in-memory catalog.
+    VULN: SQL injection in search parameter when using MSSQL backend.
+    """
+    global _shop_bootstrapped
+    ip, ua = _get_client_info(request)
+
+    with tracer.start_as_current_span("shop.browse_items", attributes={
+        "shop.source_ip": ip,
+        "shop.category_filter": category,
+        "shop.search_term": search[:256] if search else "",
+        "shop.house_filter": house,
+    }) as browse_span:
+
+        # Step 1: Try MSSQL backend
+        with tracer.start_as_current_span("shop.db_connect", attributes={
+            "db.system": "mssql",
+            "db.name": "master",
+            "db.server": MSSQL_SERVERS.get("castelblack", {}).get("host", ""),
+        }) as db_span:
+
+            # Bootstrap tables if needed
+            if not _shop_bootstrapped:
+                with tracer.start_as_current_span("shop.db_bootstrap") as boot_span:
+                    _shop_bootstrapped = _mssql_shop_bootstrap()
+                    boot_span.set_attribute("shop.bootstrap_success", _shop_bootstrapped)
+
+            # Build query — VULNERABLE to SQL injection via search param
+            with tracer.start_as_current_span("shop.build_query") as query_span:
+                where_parts = []
+                if category:
+                    where_parts.append(f"category = '{category}'")
+                if house:
+                    where_parts.append(f"house = '{house}'")
+                if search:
+                    # VULN: Direct string interpolation → SQL injection
+                    where_parts.append(f"name LIKE '%{search}%' OR description LIKE '%{search}%'")
+                where_clause = " AND ".join(where_parts) if where_parts else "1=1"
+                sql = f"SELECT * FROM shop_items WHERE {where_clause} ORDER BY category, price"
+                query_span.set_attribute("db.statement", sql)
+                query_span.set_attribute("shop.sqli_possible", bool(search))
+
+            # Detect SQL injection
+            if search:
+                sqli_patterns = ["'", "OR 1", "UNION", "--", ";", "DROP", "INSERT", "UPDATE", "DELETE"]
+                is_sqli = any(p.lower() in search.lower() for p in sqli_patterns)
+                if is_sqli:
+                    with security_span("sqli", severity="critical", payload=search,
+                                       source_ip=ip, user_agent=ua,
+                                       flag="FLAG{SH0P_SQL1_M4RK3T}",
+                                       extra_attrs={
+                                           "db.statement": sql,
+                                           "security.attack.mitre_id": "T1190",
+                                       }):
+                        pass
+
+            # Execute query
+            with tracer.start_as_current_span("shop.db_execute", attributes={
+                "db.statement": sql[:512],
+            }) as exec_span:
+                real_rows = _try_mssql_query("castelblack", sql)
+                used_mssql = real_rows is not None
+                exec_span.set_attribute("db.result_source", "goad_mssql" if used_mssql else "in_memory")
+                exec_span.set_attribute("db.row_count", len(real_rows) if real_rows else 0)
+                db_span.set_attribute("db.connected", used_mssql)
+
+        # Step 2: Process results
+        with tracer.start_as_current_span("shop.process_results") as result_span:
+            if used_mssql:
+                items = real_rows
+                source = "goad_mssql"
+            else:
+                # Fallback to in-memory
+                items = SHOP_CATALOG
+                if category:
+                    items = [i for i in items if i["category"] == category]
+                if house:
+                    items = [i for i in items if i["house"].lower() == house.lower()]
+                if search:
+                    sl = search.lower()
+                    items = [i for i in items if sl in i["name"].lower() or sl in i["description"].lower()]
+                source = "in_memory"
+            result_span.set_attribute("shop.result_count", len(items))
+            result_span.set_attribute("shop.data_source", source)
+            browse_span.set_attribute("shop.result_count", len(items))
+            browse_span.set_attribute("shop.data_source", source)
+
+        logger.info(f"shop.browse category={category} search={search} house={house} "
+                     f"results={len(items)} source={source} ip={ip}")
+
+        return {
+            "status": "success",
+            "data_source": source,
+            "count": len(items),
+            "items": items,
+            "filters": {"category": category, "search": search, "house": house},
+        }
+
+
+@router.get("/api/shop/items/{item_id}")
+async def shop_item_detail(item_id: int, request: Request):
+    """Get details for a specific shop item.
+
+    VULN A01: IDOR — no authorization, can access any item including hidden ones.
+    """
+    ip, ua = _get_client_info(request)
+
+    with tracer.start_as_current_span("shop.item_detail", attributes={
+        "shop.item_id": item_id,
+        "shop.source_ip": ip,
+    }) as detail_span:
+
+        with tracer.start_as_current_span("shop.db_lookup", attributes={
+            "db.statement": f"SELECT * FROM shop_items WHERE id = {item_id}",
+        }) as db_span:
+            real_row = _try_mssql_query("castelblack", f"SELECT * FROM shop_items WHERE id = {item_id}")
+            if real_row:
+                item = real_row[0]
+                db_span.set_attribute("db.result_source", "goad_mssql")
+            else:
+                item = next((i for i in SHOP_CATALOG if i["id"] == item_id), None)
+                db_span.set_attribute("db.result_source", "in_memory")
+
+        if not item:
+            detail_span.set_attribute("shop.result", "not_found")
+            return JSONResponse({"status": "error", "message": f"Item {item_id} not found"}, status_code=404)
+
+        detail_span.set_attribute("shop.item_name", item.get("name", ""))
+        detail_span.set_attribute("shop.item_price", item.get("price", 0))
+
+        # IDOR detection for items with secrets
+        if item_id == 9 or item_id == 12:
+            with security_span("idor", severity="high", source_ip=ip, user_agent=ua,
+                               extra_attrs={"security.idor.resource": "shop_item", "security.idor.item_id": item_id}):
+                pass
+
+        logger.info(f"shop.item_detail item_id={item_id} name={item.get('name','')} ip={ip}")
+        return {"status": "success", "item": item}
+
+
+@router.get("/api/shop/categories")
+async def shop_categories():
+    """List available shop categories with counts."""
+    cats = {}
+    for item in SHOP_CATALOG:
+        c = item["category"]
+        cats[c] = cats.get(c, 0) + 1
+    return {"status": "success", "categories": cats}
+
+
+@router.post("/api/shop/cart/add")
+async def shop_cart_add(request: Request):
+    """Add item to shopping cart.
+
+    VULN: No auth required — cart keyed by username from body (anyone can manipulate).
+    """
+    ip, ua = _get_client_info(request)
+    body = await request.json()
+
+    with tracer.start_as_current_span("shop.cart_add", attributes={
+        "shop.source_ip": ip,
+    }) as cart_span:
+        username = body.get("username", "guest")
+        item_id = int(body.get("item_id", 0))
+        quantity = int(body.get("quantity", 1))
+
+        cart_span.set_attribute("shop.cart_user", username)
+        cart_span.set_attribute("shop.item_id", item_id)
+        cart_span.set_attribute("shop.quantity", quantity)
+
+        with tracer.start_as_current_span("shop.validate_item") as val_span:
+            item = next((i for i in SHOP_CATALOG if i["id"] == item_id), None)
+            val_span.set_attribute("shop.item_found", item is not None)
+            if not item:
+                return JSONResponse({"status": "error", "message": f"Item {item_id} not found"}, status_code=404)
+
+        SHOP_CARTS.setdefault(username, []).append({
+            "item_id": item_id, "item_name": item["name"],
+            "price": item["price"], "quantity": quantity,
+        })
+
+        cart = SHOP_CARTS[username]
+        total = sum(e["price"] * e["quantity"] for e in cart)
+        cart_span.set_attribute("shop.cart_total", total)
+        cart_span.set_attribute("shop.cart_items", len(cart))
+
+        logger.info(f"shop.cart_add user={username} item={item['name']} qty={quantity} ip={ip}")
+        return {"status": "success", "cart_items": len(cart), "cart_total": total, "cart": cart}
+
+
+@router.get("/api/shop/cart")
+async def shop_cart_view(request: Request, username: str = "guest"):
+    """View shopping cart. VULN: IDOR — can view anyone's cart by changing username."""
+    ip, ua = _get_client_info(request)
+
+    with tracer.start_as_current_span("shop.cart_view", attributes={
+        "shop.cart_user": username,
+        "shop.source_ip": ip,
+    }) as cart_span:
+        cart = SHOP_CARTS.get(username, [])
+        total = sum(e["price"] * e["quantity"] for e in cart)
+        cart_span.set_attribute("shop.cart_items", len(cart))
+        cart_span.set_attribute("shop.cart_total", total)
+
+        if username != "guest":
+            current = _get_current_user(request)
+            if current and current.get("username") != username:
+                with security_span("idor", severity="high", source_ip=ip, user_agent=ua, username=username,
+                                   extra_attrs={"security.idor.resource": "shop_cart", "security.idor.target_user": username}):
+                    pass
+
+        return {"status": "success", "username": username, "cart": cart, "total": total}
+
+
+@router.post("/api/shop/purchase")
+async def shop_purchase(request: Request):
+    """Complete a purchase — writes order to GOAD MSSQL and in-memory.
+
+    Full trace: validate cart → check stock → write order to MSSQL → update stock → confirm.
+    VULN: Price manipulation — total is computed client-side and not re-validated.
+    """
+    ip, ua = _get_client_info(request)
+    body = await request.json()
+
+    with tracer.start_as_current_span("shop.purchase_flow", attributes={
+        "shop.source_ip": ip,
+    }) as purchase_span:
+
+        # Step 1: Parse order
+        with tracer.start_as_current_span("shop.parse_order") as parse_span:
+            username = body.get("username", "guest")
+            items = body.get("items", [])  # [{item_id, quantity}]
+            client_total = body.get("total", 0)  # VULN: trusted client total
+            parse_span.set_attribute("shop.buyer", username)
+            parse_span.set_attribute("shop.order_items", len(items))
+            parse_span.set_attribute("shop.client_total", client_total)
+            purchase_span.set_attribute("shop.buyer", username)
+
+            # If no items specified, use cart
+            if not items:
+                cart = SHOP_CARTS.get(username, [])
+                items = [{"item_id": e["item_id"], "quantity": e["quantity"]} for e in cart]
+                parse_span.set_attribute("shop.source", "cart")
+            else:
+                parse_span.set_attribute("shop.source", "direct")
+
+        if not items:
+            return JSONResponse({"status": "error", "message": "No items to purchase"}, status_code=400)
+
+        # Step 2: Validate stock and compute real total
+        with tracer.start_as_current_span("shop.validate_stock") as stock_span:
+            order_lines = []
+            server_total = 0
+            for entry in items:
+                item_id = int(entry.get("item_id", 0))
+                qty = int(entry.get("quantity", 1))
+                item = next((i for i in SHOP_CATALOG if i["id"] == item_id), None)
+                if not item:
+                    stock_span.set_attribute("shop.invalid_item", item_id)
+                    return JSONResponse({"status": "error", "message": f"Item {item_id} not found"}, status_code=404)
+                if qty > item["stock"]:
+                    stock_span.set_attribute("shop.insufficient_stock", item_id)
+                    return JSONResponse({"status": "error",
+                                         "message": f"Insufficient stock for {item['name']} (available: {item['stock']})"}, status_code=400)
+                line_total = item["price"] * qty
+                server_total += line_total
+                order_lines.append({"item_id": item_id, "item_name": item["name"],
+                                    "quantity": qty, "unit_price": item["price"], "line_total": line_total})
+            stock_span.set_attribute("shop.server_total", server_total)
+            stock_span.set_attribute("shop.validated_lines", len(order_lines))
+
+        # VULN: Price manipulation detection
+        if client_total and abs(client_total - server_total) > 1:
+            with security_span("auth_bypass", severity="critical",
+                               payload=f"client_total={client_total} server_total={server_total}",
+                               source_ip=ip, user_agent=ua, username=username,
+                               flag="FLAG{PR1C3_M4N1PUL4T10N_SH0P}",
+                               extra_attrs={
+                                   "security.price.client_total": client_total,
+                                   "security.price.server_total": server_total,
+                                   "security.price.difference": abs(client_total - server_total),
+                               }):
+                pass
+
+        # Step 3: Write to MSSQL
+        with tracer.start_as_current_span("shop.db_write_order", attributes={
+            "db.system": "mssql",
+            "db.operation": "INSERT",
+        }) as db_span:
+            mssql_ok = False
+            for line in order_lines:
+                sql = (f"INSERT INTO shop_orders (buyer, item_id, item_name, quantity, total_price) "
+                       f"VALUES ('{username}', {line['item_id']}, '{line['item_name']}', "
+                       f"{line['quantity']}, {line['line_total']})")
+                db_span.set_attribute("db.statement", sql[:512])
+                result = _try_mssql_query("castelblack", sql)
+                if result is not None:
+                    mssql_ok = True
+            db_span.set_attribute("db.write_success", mssql_ok)
+            db_span.set_attribute("db.result_source", "goad_mssql" if mssql_ok else "in_memory")
+
+        # Step 4: Update stock
+        with tracer.start_as_current_span("shop.update_stock") as stock_up_span:
+            for line in order_lines:
+                for cat_item in SHOP_CATALOG:
+                    if cat_item["id"] == line["item_id"]:
+                        cat_item["stock"] = max(0, cat_item["stock"] - line["quantity"])
+                        break
+                if mssql_ok:
+                    _try_mssql_query("castelblack",
+                                     f"UPDATE shop_items SET stock = stock - {line['quantity']} "
+                                     f"WHERE id = {line['item_id']}")
+            stock_up_span.set_attribute("shop.stock_updated", True)
+
+        # Step 5: Record order
+        with tracer.start_as_current_span("shop.record_order") as record_span:
+            order_id = len(SHOP_ORDERS) + 1
+            order = {
+                "order_id": order_id,
+                "buyer": username,
+                "items": order_lines,
+                "total": server_total,
+                "status": "confirmed",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "mssql_persisted": mssql_ok,
+            }
+            SHOP_ORDERS.append(order)
+            record_span.set_attribute("shop.order_id", order_id)
+            record_span.set_attribute("shop.total", server_total)
+
+        # Clear cart
+        SHOP_CARTS.pop(username, None)
+
+        purchase_span.set_attribute("shop.order_id", order_id)
+        purchase_span.set_attribute("shop.total", server_total)
+        purchase_span.set_attribute("shop.mssql_persisted", mssql_ok)
+
+        logger.info(f"shop.purchase order_id={order_id} buyer={username} total={server_total} "
+                     f"items={len(order_lines)} mssql={mssql_ok} ip={ip}")
+
+        return {
+            "status": "success",
+            "order": order,
+            "flag": "FLAG{SH0P_PURCH4S3_C0MPL3T3}" if server_total > 100000 else None,
+        }
+
+
+@router.get("/api/shop/orders")
+async def shop_order_history(request: Request, username: str = ""):
+    """View order history. Queries MSSQL for persisted orders + in-memory.
+
+    VULN: IDOR — can view anyone's orders by changing username.
+    VULN: SQL injection in username parameter when using MSSQL.
+    """
+    ip, ua = _get_client_info(request)
+
+    with tracer.start_as_current_span("shop.order_history", attributes={
+        "shop.query_user": username,
+        "shop.source_ip": ip,
+    }) as hist_span:
+
+        # Step 1: Try MSSQL
+        with tracer.start_as_current_span("shop.db_query_orders", attributes={
+            "db.system": "mssql",
+        }) as db_span:
+            # VULN: SQL injection via username
+            sql = f"SELECT * FROM shop_orders WHERE buyer = '{username}' ORDER BY order_date DESC"
+            db_span.set_attribute("db.statement", sql)
+            real_orders = _try_mssql_query("castelblack", sql) if username else None
+
+            if username:
+                sqli_patterns = ["'", "OR 1", "UNION", "--", ";"]
+                is_sqli = any(p.lower() in username.lower() for p in sqli_patterns)
+                if is_sqli:
+                    with security_span("sqli", severity="critical", payload=username,
+                                       source_ip=ip, user_agent=ua,
+                                       flag="FLAG{SH0P_0RD3R_SQL1}",
+                                       extra_attrs={"db.statement": sql}):
+                        pass
+
+        # Step 2: Merge with in-memory
+        with tracer.start_as_current_span("shop.merge_results") as merge_span:
+            mem_orders = [o for o in SHOP_ORDERS if not username or o["buyer"] == username]
+            source = "goad_mssql" if real_orders is not None else "in_memory"
+            orders = real_orders if real_orders is not None else mem_orders
+            merge_span.set_attribute("shop.order_count", len(orders))
+            merge_span.set_attribute("shop.data_source", source)
+
+        hist_span.set_attribute("shop.order_count", len(orders))
+
+        # IDOR detection
+        current = _get_current_user(request)
+        if current and username and current.get("username") != username:
+            with security_span("idor", severity="high", source_ip=ip, user_agent=ua,
+                               extra_attrs={"security.idor.resource": "shop_orders", "security.idor.target_user": username}):
+                pass
+
+        logger.info(f"shop.orders user={username} count={len(orders)} source={source} ip={ip}")
+        return {"status": "success", "data_source": source, "orders": orders}
+
+
+# ═══════════════════════════════════════════════════════════════════
 # VULNERABILITY CATALOG & CTF SCOREBOARD
 # ═══════════════════════════════════════════════════════════════════
 
@@ -1810,7 +2316,7 @@ async def vulnerability_catalog():
     """Returns the complete catalog of vulnerabilities and their flags."""
     return {
         "status": "success",
-        "total_vulnerabilities": 25,
+        "total_vulnerabilities": 31,
         "owasp_coverage": {
             "A01:2021-Broken Access Control": [
                 {"id": "VULN-001", "name": "IDOR on User Profiles", "endpoint": "GET /portal/api/users/{id}", "severity": "high", "flag": "FLAG{1D0R_PR0F1L3_L34K}"},
@@ -1861,6 +2367,14 @@ async def vulnerability_catalog():
             "GOAD Integration": [
                 {"id": "VULN-029", "name": "Kerberoasting Simulation", "endpoint": "GET /portal/api/goad/kerberoast", "severity": "critical", "flag": "FLAG{K3RB3R04ST_T1CK3T}"},
                 {"id": "VULN-030", "name": "DCSync Simulation", "endpoint": "GET /portal/api/goad/dcsync", "severity": "critical", "flag": "FLAG{DC5YNC_R3PL1C4T10N}"},
+            ],
+            "GOAD Webshop (MSSQL)": [
+                {"id": "VULN-031", "name": "Shop SQLi (Search)", "endpoint": "GET /portal/api/shop/items?search=", "severity": "critical", "flag": "FLAG{SH0P_SQL1_M4RK3T}"},
+                {"id": "VULN-032", "name": "Shop SQLi (Orders)", "endpoint": "GET /portal/api/shop/orders?username=", "severity": "critical", "flag": "FLAG{SH0P_0RD3R_SQL1}"},
+                {"id": "VULN-033", "name": "Shop IDOR (Item Secret)", "endpoint": "GET /portal/api/shop/items/9", "severity": "high", "flag": "FLAG{SH0P_1D0R_S3CR3T}"},
+                {"id": "VULN-034", "name": "Shop Price Manipulation", "endpoint": "POST /portal/api/shop/purchase", "severity": "critical", "flag": "FLAG{PR1C3_M4N1PUL4T10N_SH0P}"},
+                {"id": "VULN-035", "name": "Shop Cart IDOR", "endpoint": "GET /portal/api/shop/cart?username=", "severity": "high"},
+                {"id": "VULN-036", "name": "Shop Purchase Flag", "endpoint": "POST /portal/api/shop/purchase", "severity": "medium", "flag": "FLAG{SH0P_PURCH4S3_C0MPL3T3}"},
             ],
         },
     }

@@ -594,6 +594,16 @@ body {
   border-color: rgba(201,168,76,0.4);
 }
 
+.module-card-wide {
+  grid-column: 1 / -1;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
 .module-header {
   display: flex;
   justify-content: space-between;
