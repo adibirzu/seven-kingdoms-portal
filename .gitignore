@@ -27,6 +27,10 @@ id_rsa*
 node_modules/
 package-lock.json
 
+# Deployment state
+.state/
+.env.local.bak
+
 # IDE / AI tooling
 .agents/
 .claude/

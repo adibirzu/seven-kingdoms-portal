@@ -41,7 +41,8 @@ module "network" {
   vcn_cidr            = var.vcn_cidr
   public_subnet_cidr  = var.public_subnet_cidr
   private_subnet_cidr = var.private_subnet_cidr
-  create_oke_subnets  = false
+  create_oke_subnets  = var.create_oke_subnets
+  enable_goad_peering = var.enable_goad_peering
   tags                = local.common_tags
 }
 
@@ -116,8 +117,47 @@ variable "private_subnet_cidr" {
   default = "10.1.2.0/24"
 }
 
+variable "oke_api_subnet_cidr" {
+  type    = string
+  default = "10.1.3.0/24"
+}
+
+variable "create_oke_subnets" {
+  type    = bool
+  default = false
+}
+
+variable "enable_goad_peering" {
+  type    = bool
+  default = false
+}
+
+variable "environment" {
+  type    = string
+  default = "dev"
+}
+
+variable "tenancy_ocid" {
+  type    = string
+  default = ""
+}
+
+variable "deployment_mode" {
+  type    = string
+  default = "vm"
+}
+
 # Outputs
 output "lb_public_ip" { value = module.loadbalancer.lb_public_ip }
 output "instance_private_ip" { value = module.compute.instance_private_ip }
 output "bastion_public_ip" { value = module.compute.bastion_public_ip }
 output "access_url" { value = "http://${module.loadbalancer.lb_public_ip}" }
+
+# Network outputs for orchestrator
+output "vcn_id" { value = module.network.vcn_id }
+output "public_subnet_id" { value = module.network.public_subnet_id }
+output "private_subnet_id" { value = module.network.private_subnet_id }
+output "app_nsg_id" { value = module.network.app_nsg_id }
+output "lb_nsg_id" { value = module.network.lb_nsg_id }
+output "private_route_table_id" { value = module.network.private_route_table_id }
+output "app_lpg_id" { value = module.network.app_lpg_id }
