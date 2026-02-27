@@ -41,6 +41,7 @@ import pickle
 from lxml import etree
 
 from .vulnerable_portal import router as portal_router
+from .vulnerable_portal import MSSQL_SERVERS, GOAD_MSSQL_USER, GOAD_MSSQL_PASSWORD
 
 # Load environment variables from .env.local
 load_dotenv(".env.local")
@@ -711,13 +712,18 @@ async def got_wildlings(name: str = "Tormund"):
     if "UNION" in name.upper() and "SELECT" in name.upper():
         backend.push_metric("CTFFlagFound", 1.0, {"type": "SQLI_GOT"})
     
+    srv = MSSQL_SERVERS.get("castelblack", {})
+    conn = None
     try:
         # Attempt real connection to GOAD
-        conn = pymssql.connect(server='castelblack.north.sevenkingdoms.local', user='sa', password='password123!', database='master', timeout=2)
+        conn = pymssql.connect(
+            server=srv.get("host", "192.168.56.22"),
+            user=GOAD_MSSQL_USER, password=GOAD_MSSQL_PASSWORD,
+            database="master", timeout=2,
+        )
         cursor = conn.cursor()
         cursor.execute(f"SELECT * FROM wildlings WHERE name = '{name}'")
         row = cursor.fetchone()
-        conn.close()
         return {"status": "success", "data": row if row else "No wildling found."}
     except Exception as e:
         # Fallback realistic trace generation if GOAD subnet is unreachable
@@ -741,6 +747,12 @@ async def got_wildlings(name: str = "Tormund"):
                 span.set_attribute("security.flag_captured", True)
                 return {"status": "success", "data": "UNION result simulated! FLAG{7H3_W4LL_H45_B33N_BR34CH3D}"}
             return {"status": "error", "message": f"Wildling not found (DB Error): {str(e)}"}
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 # CTF 8: SSRF to Meereen (Dragon Eggs)
 @app.get("/api/v1/got/dragons")

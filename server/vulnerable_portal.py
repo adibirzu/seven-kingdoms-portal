@@ -54,17 +54,41 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "web" / "static"
 JWT_SECRET = os.getenv("PORTAL_JWT_SECRET", "seven-kingdoms-secret-key-2024")
 JWT_ALGORITHM = "HS256"  # Also accepts 'none' for vuln demo
 
-# GOAD LDAP endpoints (Active Directory)
+# GOAD LDAP endpoints (Active Directory) — env-var overridable for non-standard labs
 LDAP_SERVERS = [
-    {"host": "192.168.56.10", "domain": "sevenkingdoms.local", "name": "kingslanding"},
-    {"host": "192.168.56.11", "domain": "north.sevenkingdoms.local", "name": "winterfell"},
-    {"host": "192.168.56.12", "domain": "essos.local", "name": "meereen"},
+    {
+        "host": os.getenv("GOAD_DC_KINGSLANDING_IP", "192.168.56.10"),
+        "domain": "sevenkingdoms.local",
+        "name": "kingslanding",
+    },
+    {
+        "host": os.getenv("GOAD_DC_WINTERFELL_IP", "192.168.56.11"),
+        "domain": "north.sevenkingdoms.local",
+        "name": "winterfell",
+    },
+    {
+        "host": os.getenv("GOAD_DC_MEEREEN_IP", "192.168.56.12"),
+        "domain": "essos.local",
+        "name": "meereen",
+    },
 ]
 
-# GOAD MSSQL endpoints
+# GOAD MSSQL shared credentials
+GOAD_MSSQL_USER = os.getenv("GOAD_MSSQL_USER", "sa")
+GOAD_MSSQL_PASSWORD = os.getenv("GOAD_MSSQL_PASSWORD", "password123!")
+
+# GOAD MSSQL endpoints — env-var overridable
 MSSQL_SERVERS = {
-    "castelblack": {"host": "192.168.56.22", "port": 1433, "db": "master"},
-    "braavos": {"host": "192.168.56.23", "port": 1433, "db": "master"},
+    "castelblack": {
+        "host": os.getenv("GOAD_MSSQL_CASTELBLACK_HOST", "192.168.56.22"),
+        "port": int(os.getenv("GOAD_MSSQL_PORT", "1433")),
+        "db": "master",
+    },
+    "braavos": {
+        "host": os.getenv("GOAD_MSSQL_BRAAVOS_HOST", "192.168.56.23"),
+        "port": int(os.getenv("GOAD_MSSQL_PORT", "1433")),
+        "db": "master",
+    },
 }
 
 # Tracer
@@ -206,13 +230,13 @@ def _try_ldap_auth(username: str, password: str, domain: str = "") -> dict | Non
             target_servers = [s for s in LDAP_SERVERS if domain in s["domain"]] or LDAP_SERVERS
 
         for srv_info in target_servers:
+            conn = None
             try:
                 server = Server(srv_info["host"], port=389, get_info=ldap3.NONE, connect_timeout=2)
                 # VULNERABLE: user input directly in bind DN (LDAP injection possible)
                 bind_dn = f"{username}@{srv_info['domain']}"
                 conn = Connection(server, user=bind_dn, password=password, authentication=SIMPLE,
                                   auto_bind=True, raise_exceptions=True, receive_timeout=3)
-                conn.unbind()
                 return {
                     "username": username,
                     "realm": srv_info["domain"],
@@ -221,6 +245,12 @@ def _try_ldap_auth(username: str, password: str, domain: str = "") -> dict | Non
                 }
             except Exception:
                 continue
+            finally:
+                if conn:
+                    try:
+                        conn.unbind()
+                    except Exception:
+                        pass
 
     except ImportError:
         logger.debug("ldap3 not installed, skipping LDAP auth")
@@ -235,20 +265,25 @@ def _try_mssql_query(server_name: str, query: str) -> list[dict] | None:
     srv = MSSQL_SERVERS.get(server_name)
     if not srv:
         return None
+    conn = None
     try:
         conn = pymssql.connect(
             server=srv["host"], port=srv["port"],
-            user="sa", password="password123!",
+            user=GOAD_MSSQL_USER, password=GOAD_MSSQL_PASSWORD,
             database=srv["db"], login_timeout=3, timeout=2,
         )
         cursor = conn.cursor(as_dict=True)
         cursor.execute(query)
-        rows = cursor.fetchall()
-        conn.close()
-        return rows
+        return cursor.fetchall()
     except Exception as e:
         logger.debug(f"MSSQL query to {server_name} failed: {e}")
         return None
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 
 # ── Router ─────────────────────────────────────────────────────────
@@ -1361,29 +1396,41 @@ async def goad_connectivity(request: Request):
 
     # Test LDAP
     for srv in LDAP_SERVERS:
+        s = None
         try:
             import socket
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(2)
             result = s.connect_ex((srv["host"], 389))
-            s.close()
             results[f"ldap_{srv['name']}"] = {"host": srv["host"], "port": 389,
                                                "status": "reachable" if result == 0 else "unreachable"}
         except Exception as e:
             results[f"ldap_{srv['name']}"] = {"host": srv["host"], "port": 389, "status": f"error: {str(e)}"}
+        finally:
+            if s:
+                try:
+                    s.close()
+                except Exception:
+                    pass
 
     # Test MSSQL
     for name, srv in MSSQL_SERVERS.items():
+        s = None
         try:
             import socket
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(2)
             result = s.connect_ex((srv["host"], srv["port"]))
-            s.close()
             results[f"mssql_{name}"] = {"host": srv["host"], "port": srv["port"],
                                          "status": "reachable" if result == 0 else "unreachable"}
         except Exception as e:
             results[f"mssql_{name}"] = {"host": srv["host"], "port": srv["port"], "status": f"error: {str(e)}"}
+        finally:
+            if s:
+                try:
+                    s.close()
+                except Exception:
+                    pass
 
     return {"status": "success", "connectivity": results}
 
