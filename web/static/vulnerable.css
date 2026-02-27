@@ -1,0 +1,581 @@
+/* ═══════════════════════════════════════════════════
+ * Seven Kingdoms CTF — Vulnerable Application Styles
+ * Matches the Portal dark theme for cohesive UX
+ * ═══════════════════════════════════════════════════ */
+
+:root {
+  --bg-primary: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-card: #1c2333;
+  --bg-card-hover: #222d3f;
+  --border: #30363d;
+  --border-focus: #c9a84c;
+  --gold: #c9a84c;
+  --gold-dim: rgba(201,168,76,0.2);
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-muted: #6e7681;
+  --success: #3fb950;
+  --warning: #d29922;
+  --error: #f85149;
+  --critical: #da3633;
+  --info: #58a6ff;
+  --purple: #bc8cff;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* ── Navigation Bar ──────────────────────────────── */
+.topnav {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  height: 52px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.topnav .brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  margin-right: 32px;
+}
+
+.topnav .brand-icon { font-size: 1.2rem; }
+
+.topnav .brand-name {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--gold);
+}
+
+.topnav .nav-links {
+  display: flex;
+  gap: 0;
+  height: 100%;
+}
+
+.topnav .nav-links a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  padding: 0 16px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.topnav .nav-links a:hover {
+  color: var(--text-primary);
+  background: rgba(255,255,255,0.03);
+}
+
+.topnav .nav-links a.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--gold);
+}
+
+.topnav .nav-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.topnav .portal-link {
+  background: var(--gold);
+  color: #000;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: opacity 0.2s;
+}
+
+.topnav .portal-link:hover { opacity: 0.9; }
+
+/* ── Page Container ──────────────────────────────── */
+.page { max-width: 1440px; margin: 0 auto; padding: 24px; }
+
+.page-header { margin-bottom: 24px; }
+
+.page-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.page-subtitle {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+}
+
+/* ── Tab Content ─────────────────────────────────── */
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ── Stats Bar ───────────────────────────────────── */
+.stats-bar {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.stat-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+.stat-value.success { color: var(--success); }
+.stat-value.error { color: var(--error); }
+.stat-value.info { color: var(--info); }
+
+/* ── Section Headers ─────────────────────────────── */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.section-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+/* ── Badges ──────────────────────────────────────── */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.badge-critical { background: rgba(218,54,51,0.2); color: var(--critical); }
+.badge-high { background: rgba(248,81,73,0.2); color: var(--error); }
+.badge-medium { background: rgba(210,153,34,0.2); color: var(--warning); }
+.badge-low { background: rgba(63,185,80,0.2); color: var(--success); }
+.badge-ctf { background: rgba(201,168,76,0.2); color: var(--gold); }
+.badge-goad { background: rgba(188,140,255,0.2); color: var(--purple); }
+.badge-otel { background: rgba(88,166,255,0.2); color: var(--info); }
+.badge-flag { background: rgba(63,185,80,0.2); color: var(--success); border: 1px dashed var(--success); }
+.badge-locked { background: rgba(110,118,129,0.2); color: var(--text-muted); }
+
+/* ── Challenge Cards Grid ────────────────────────── */
+.challenges-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.challenge-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.challenge-card:hover {
+  border-color: var(--gold);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
+
+.challenge-card.solved {
+  border-color: var(--success);
+  background: rgba(63,185,80,0.05);
+}
+
+.challenge-card.loading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.challenge-card.loading::after {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  animation: loading-bar 1.5s infinite;
+}
+
+@keyframes loading-bar {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.card-icon {
+  font-size: 1.8rem;
+  line-height: 1;
+}
+
+.card-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.card-desc {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.card-desc code {
+  background: rgba(255,255,255,0.08);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--gold);
+}
+
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  font-size: 0.8rem;
+}
+
+.card-endpoint {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: rgba(255,255,255,0.04);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+.card-otel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--info);
+  font-size: 0.75rem;
+}
+
+.difficulty-dots {
+  display: flex;
+  gap: 3px;
+}
+
+.difficulty-dots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+}
+
+.difficulty-dots span.filled { background: var(--gold); }
+
+/* ── Response Panel ──────────────────────────────── */
+.response-panel {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-top: 24px;
+  display: none;
+}
+
+.response-panel.visible { display: block; }
+
+.response-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(0,0,0,0.2);
+  border-radius: 10px 10px 0 0;
+}
+
+.response-header h3 {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.response-meta {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 0.8rem;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-dot.ok { background: var(--success); box-shadow: 0 0 6px var(--success); }
+.status-dot.err { background: var(--error); box-shadow: 0 0 6px var(--error); }
+
+.response-body {
+  padding: 16px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.response-body pre {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.flag-banner {
+  background: rgba(63,185,80,0.1);
+  border: 1px dashed var(--success);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-top: 12px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--success);
+  font-size: 1.1rem;
+}
+
+/* ── Walkthrough Guide ───────────────────────────── */
+.guide-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+.guide-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.guide-header:hover { background: rgba(255,255,255,0.02); }
+
+.guide-header h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.guide-header .chevron {
+  color: var(--text-muted);
+  transition: transform 0.2s;
+}
+
+.guide-body {
+  display: none;
+  padding: 0 20px 20px;
+  border-top: 1px solid var(--border);
+}
+
+.guide-body.open { display: block; padding-top: 16px; }
+
+.guide-step {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.guide-step-num {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--gold-dim);
+  color: var(--gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.guide-step-content { flex: 1; }
+
+.guide-step-content h4 {
+  font-size: 0.9rem;
+  margin-bottom: 6px;
+}
+
+.guide-step-content p {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.guide-cmd {
+  background: #0d1117;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--success);
+  position: relative;
+  overflow-x: auto;
+  white-space: pre;
+  margin-bottom: 8px;
+}
+
+.guide-cmd .copy-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.guide-cmd .copy-btn:hover { color: var(--text-primary); border-color: var(--gold); }
+
+.guide-note {
+  background: rgba(88,166,255,0.08);
+  border-left: 3px solid var(--info);
+  padding: 10px 14px;
+  border-radius: 0 6px 6px 0;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin-top: 8px;
+}
+
+.guide-warning {
+  background: rgba(248,81,73,0.08);
+  border-left: 3px solid var(--error);
+  padding: 10px 14px;
+  border-radius: 0 6px 6px 0;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin-top: 8px;
+}
+
+/* ── Metrics Bar (live) ──────────────────────────── */
+.live-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.live-metric {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  text-align: center;
+}
+
+.live-metric .value {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.live-metric .label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+
+/* ── Run All Button ──────────────────────────────── */
+.btn-run-all {
+  background: var(--gold);
+  color: #000;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-run-all:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+/* ── Responsive ──────────────────────────────────── */
+@media (max-width: 768px) {
+  .stats-bar { grid-template-columns: repeat(3, 1fr); }
+  .challenges-grid { grid-template-columns: 1fr; }
+  .live-metrics { grid-template-columns: repeat(2, 1fr); }
+}

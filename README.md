@@ -34,6 +34,28 @@ Game of Thrones themed login with multiple user accounts and domain authenticati
 
 ![Login](docs/screenshots/01-login.png)
 
+### CTF Platform (`/vulnerable`)
+Full capture-the-flag interface with 18 challenges across Web Application Attacks, GOAD Active Directory Attacks, and UX Degradation Scenarios. Each challenge card shows OWASP category, severity badge, endpoint, and OTel instrumentation status.
+
+![CTF Challenges](docs/screenshots/ctf-01-challenges.png)
+
+GOAD integration: Mission 7 (MSSQL Injection) and Mission 8 (SSRF) target the Active Directory lab. UX scenarios generate APM traces for observability demonstrations:
+
+![GOAD & UX Scenarios](docs/screenshots/ctf-02-goad.png)
+
+Click any challenge to fire the attack — the response panel shows HTTP status, latency, and auto-extracts flags via regex:
+
+![Challenge Response](docs/screenshots/ctf-03-response.png)
+
+### CTF Walkthrough Guides
+Step-by-step exploitation guides with curl commands, expected output, and OCI APM detection queries:
+
+![Walkthrough Guide](docs/screenshots/ctf-04-walkthrough.png)
+
+Expand any guide for the full attack flow — from understanding the target to detecting the attack in OCI APM Trace Explorer:
+
+![Expanded Walkthrough](docs/screenshots/ctf-05-walkthrough-expanded.png)
+
 ## What is this?
 
 Seven Kingdoms Portal is a "GOAD-style" (Game of Active Directory) web application that provides:
@@ -186,6 +208,7 @@ Internet → WAF → Load Balancer (public subnet) → App VM (private subnet, p
 | `/ready` | Readiness probe — dependency checks |
 | `/portal/` | Seven Kingdoms Portal UI |
 | `/portal/api/detection-rules` | Detection rules API |
+| `/vulnerable` | CTF platform — challenges, walkthroughs, scoreboard |
 | `/` | OCI Observability Overview dashboard |
 
 ## Environment Variables
@@ -220,7 +243,8 @@ All 20 rules map to MITRE ATT&CK techniques and OWASP Top 10 categories:
 
 ```bash
 npm install
-node docs/take-screenshots.mjs
+node docs/take-screenshots.mjs      # Portal screenshots
+node docs/take-ctf-screenshots.mjs   # CTF platform screenshots
 ```
 
 ## License
