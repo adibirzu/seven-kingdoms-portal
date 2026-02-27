@@ -528,60 +528,98 @@ async def update_system_service(service_name: str, exec_path: str):
 
 # CTF 1: IDOR (Insecure Direct Object Reference)
 @app.get("/api/v1/ctf/orders/{order_id}")
-async def get_order_details(order_id: int):
+async def get_order_details(order_id: int, request: Request):
     """
     Vulnerable to IDOR. Users can access other users' orders by guessing order_id.
     """
-    backend.push_log("SECURITY", f"CTF_IDOR: Acccessed order {order_id}")
-    
-    # Simulate DB
+    tracer = trace.get_tracer(__name__)
+
     orders = {
         1001: {"user": "demo", "total": 150.00, "status": "shipped", "items": ["Sword"]},
         1002: {"user": "admin", "total": 9999.00, "status": "processing", "secret_note": "FLAG{1D0R_15_345Y}"},
     }
-    
-    if order_id in orders:
-        if order_id != 1001:
-             backend.push_metric("CTFFlagFound", 1.0, {"type": "IDOR"})
-        return {"status": "success", "data": orders[order_id]}
-    
+
+    with tracer.start_as_current_span("ctf.idor", attributes={
+        "security.attack.type": "idor",
+        "security.attack.severity": "high",
+        "security.attack.owasp": "A01:2021",
+        "security.attack.mitre_id": "T1078",
+        "security.idor.order_id": order_id,
+        "security.source_ip": request.client.host,
+    }) as span:
+        backend.push_log("SECURITY", f"CTF_IDOR: Accessed order {order_id}",
+                         {"order_id": order_id, "source_ip": request.client.host})
+
+        if order_id in orders:
+            if order_id != 1001:
+                span.set_attribute("security.flag_captured", True)
+                backend.push_metric("CTFFlagFound", 1.0, {"type": "IDOR"})
+            return {"status": "success", "data": orders[order_id]}
+
     return JSONResponse(status_code=404, content={"status": "error", "message": "Order not found"})
 
 # CTF 2: SSTI / Path Traversal simulation
 @app.get("/api/v1/ctf/render")
-async def render_template(template: str):
+async def render_template(template: str, request: Request):
     """
     Simulates Server-Side Template Injection or Path Traversal.
     """
-    backend.push_log("SECURITY", f"CTF_SSTI: Template render attempt with {template}")
-    
+    tracer = trace.get_tracer(__name__)
+
     if "../" in template or "/etc/passwd" in template:
-        backend.push_metric("CTFFlagFound", 1.0, {"type": "LFI"})
-        backend.push_metric("AttackCount", 1.0, {"type": "LFI_Attempt"})
-        return {"status": "success", "rendered": "root:x:0:0:root:/root:/bin/bash\nFLAG{LFI_M4573R}"}
-    
+        with tracer.start_as_current_span("ctf.lfi", attributes={
+            "security.attack.type": "lfi",
+            "security.attack.severity": "critical",
+            "security.attack.owasp": "A01:2021",
+            "security.attack.mitre_id": "T1083",
+            "security.attack.payload": template[:200],
+            "security.source_ip": request.client.host,
+        }) as span:
+            span.set_attribute("security.flag_captured", True)
+            backend.push_log("SECURITY", f"CTF_LFI: Path traversal with {template}")
+            backend.push_metric("CTFFlagFound", 1.0, {"type": "LFI"})
+            return {"status": "success", "rendered": "root:x:0:0:root:/root:/bin/bash\nFLAG{LFI_M4573R}"}
+
     if "{{" in template and "}}" in template:
-        backend.push_metric("CTFFlagFound", 1.0, {"type": "SSTI"})
-        backend.push_metric("AttackCount", 1.0, {"type": "SSTI_Attempt"})
-        if "7*7" in template:
-            return {"status": "success", "rendered": "49 - FLAG{5571_P4YL04D_C0NF1RM3D}"}
-        return {"status": "success", "rendered": f"Template injected. FLAG{{5571_1NJ3C710N}}"}
+        with tracer.start_as_current_span("ctf.ssti", attributes={
+            "security.attack.type": "ssti",
+            "security.attack.severity": "critical",
+            "security.attack.owasp": "A03:2021",
+            "security.attack.mitre_id": "T1190",
+            "security.attack.payload": template[:200],
+            "security.source_ip": request.client.host,
+        }) as span:
+            span.set_attribute("security.flag_captured", True)
+            backend.push_log("SECURITY", f"CTF_SSTI: Template injection with {template}")
+            backend.push_metric("CTFFlagFound", 1.0, {"type": "SSTI"})
+            if "7*7" in template:
+                return {"status": "success", "rendered": "49 - FLAG{5571_P4YL04D_C0NF1RM3D}"}
+            return {"status": "success", "rendered": f"Template injected. FLAG{{5571_1NJ3C710N}}"}
 
     return {"status": "success", "rendered": f"Hello, {template}"}
 
 # CTF 3: Reflected XSS
 @app.get("/api/v1/ctf/search")
-async def ctf_search(query: str):
+async def ctf_search(query: str, request: Request):
     """
     Simulates a Reflected XSS endpoint. Returns the query unescaped in HTML response.
     """
-    backend.push_log("SECURITY", f"CTF_XSS: Search query {query}")
-    
+    tracer = trace.get_tracer(__name__)
+
     if "<script>" in query.lower() or "alert(" in query.lower():
-         backend.push_metric("CTFFlagFound", 1.0, {"type": "XSS"})
-         backend.push_metric("AttackCount", 1.0, {"type": "XSS_Attempt"})
-         return HTMLResponse(content=f"<h3>Search results for: {query}</h3><p>No results found.</p><p style='color:green;'>FLAG{{X55_R3FL3C73D_W0RK5}}</p>", status_code=200)
-         
+        with tracer.start_as_current_span("ctf.xss", attributes={
+            "security.attack.type": "xss",
+            "security.attack.severity": "high",
+            "security.attack.owasp": "A03:2021",
+            "security.attack.mitre_id": "T1059.007",
+            "security.attack.payload": query[:200],
+            "security.source_ip": request.client.host,
+        }) as span:
+            span.set_attribute("security.flag_captured", True)
+            backend.push_log("SECURITY", f"CTF_XSS: Reflected XSS with {query}")
+            backend.push_metric("CTFFlagFound", 1.0, {"type": "XSS"})
+            return HTMLResponse(content=f"<h3>Search results for: {query}</h3><p>No results found.</p><p style='color:green;'>FLAG{{X55_R3FL3C73D_W0RK5}}</p>", status_code=200)
+
     return HTMLResponse(content=f"<h3>Search results for: {query}</h3><p>No results found.</p>", status_code=200)
 
 # CTF 4: XXE (XML External Entity)
@@ -590,51 +628,75 @@ async def xxe_upload(request: Request):
     """
     Simulates an XXE vulnerability. Uses lxml with resolve_entities=True.
     """
+    tracer = trace.get_tracer(__name__)
     body = await request.body()
-    backend.push_log("SECURITY", f"CTF_XXE: Uploaded XML file.")
-    
-    try:
-        # Vulnerable parser
-        parser = etree.XMLParser(resolve_entities=True, no_network=False)
-        root = etree.fromstring(body, parser)
-        
-        extracted_content = ""
-        for elem in root.iter():
-             if elem.text and "root:x" in elem.text:
-                backend.push_metric("CTFFlagFound", 1.0, {"type": "XXE"})
-                extracted_content += elem.text
-                return {"status": "success", "message": "XML processed successfully.", "data": "Parsed successfully! FLAG{XX3_3X73RN4L_3N717Y}"}
-                
-             elif elem.text:
-                extracted_content += f"{elem.tag}: {elem.text}\n"
 
-        return {"status": "success", "message": "XML processed.", "data": extracted_content}
-    except Exception as e:
-        return {"status": "error", "message": f"XML Parsing failed: {str(e)}"}
+    with tracer.start_as_current_span("ctf.xxe", attributes={
+        "security.attack.type": "xxe",
+        "security.attack.severity": "critical",
+        "security.attack.owasp": "A05:2021",
+        "security.attack.mitre_id": "T1059",
+        "security.xxe.payload_size": len(body),
+        "security.source_ip": request.client.host,
+    }) as span:
+        backend.push_log("SECURITY", "CTF_XXE: Uploaded XML file.")
+
+        try:
+            parser = etree.XMLParser(resolve_entities=True, no_network=False)
+            root = etree.fromstring(body, parser)
+
+            extracted_content = ""
+            for elem in root.iter():
+                if elem.text and "root:x" in elem.text:
+                    span.set_attribute("security.flag_captured", True)
+                    backend.push_metric("CTFFlagFound", 1.0, {"type": "XXE"})
+                    return {"status": "success", "message": "XML processed successfully.", "data": "Parsed successfully! FLAG{XX3_3X73RN4L_3N717Y}"}
+                elif elem.text:
+                    extracted_content += f"{elem.tag}: {elem.text}\n"
+
+            # Even without /etc/passwd content, XXE attempt with DOCTYPE is suspicious
+            if b"<!DOCTYPE" in body or b"<!ENTITY" in body:
+                span.set_attribute("security.flag_captured", True)
+                backend.push_metric("CTFFlagFound", 1.0, {"type": "XXE"})
+                return {"status": "success", "message": "XML processed.", "data": extracted_content + "\nFLAG{XX3_3X73RN4L_3N717Y}"}
+
+            return {"status": "success", "message": "XML processed.", "data": extracted_content}
+        except Exception as e:
+            return {"status": "error", "message": f"XML Parsing failed: {str(e)}"}
 
 # CTF 5: Insecure Deserialization (Python Pickle)
+@app.get("/api/v1/ctf/import_profile")
 @app.post("/api/v1/ctf/import_profile")
-async def import_profile(payload: str = Query(..., description="Base64 encoded pickled profile")):
+async def import_profile(request: Request, payload: str = Query(..., description="Base64 encoded pickled profile")):
     """
     Simulates a Python Pickle deserialization vulnerability.
+    Accepts both GET (from CTF UI) and POST (from curl).
     """
-    backend.push_log("SECURITY", f"CTF_DESERIALIZATION: Profile import attempt")
-    
-    try:
-        # Check if the payload contains the word "flag" before decoding and executing 
-        # as a rudimentary mock for CTF detection.
-        decoded = base64.b64decode(payload)
-        
-        if b"FLAG_INJECTED" in decoded or b"__reduce__" in decoded:
-            backend.push_metric("CTFFlagFound", 1.0, {"type": "DESERIALIZATION"})
-            return {"status": "success", "profile": "Injected Code Execution simulated! FLAG{P1CKL3_1N53CUR3}"}
-            
-        # Dangerously unpickle for real simulation logic (if it wasn't intercepted above)
-        obj = pickle.loads(decoded)
-        return {"status": "success", "profile": str(obj)}
-        
-    except Exception as e:
-        return {"status": "error", "message": f"Profile load failed: {str(e)}"}
+    tracer = trace.get_tracer(__name__)
+
+    with tracer.start_as_current_span("ctf.deserialization", attributes={
+        "security.attack.type": "deserialization",
+        "security.attack.severity": "critical",
+        "security.attack.owasp": "A08:2021",
+        "security.attack.mitre_id": "T1059",
+        "security.deserialization.payload_length": len(payload),
+        "security.source_ip": request.client.host,
+    }) as span:
+        backend.push_log("SECURITY", "CTF_DESERIALIZATION: Profile import attempt")
+
+        try:
+            decoded = base64.b64decode(payload)
+
+            if b"FLAG_INJECTED" in decoded or b"__reduce__" in decoded or b"system" in decoded:
+                span.set_attribute("security.flag_captured", True)
+                backend.push_metric("CTFFlagFound", 1.0, {"type": "DESERIALIZATION"})
+                return {"status": "success", "profile": "Injected Code Execution simulated! FLAG{P1CKL3_1N53CUR3}"}
+
+            obj = pickle.loads(decoded)
+            return {"status": "success", "profile": str(obj)}
+
+        except Exception as e:
+            return {"status": "error", "message": f"Profile load failed: {str(e)}"}
 
 # CTF 7: GOAD DB SQL Injection (The Wall)
 @app.get("/api/v1/got/wildlings")
@@ -658,8 +720,7 @@ async def got_wildlings(name: str = "Tormund"):
         conn.close()
         return {"status": "success", "data": row if row else "No wildling found."}
     except Exception as e:
-        # Fallback realistic trace generation if GOAD subnet is unreachable from this execution context
-        backend.push_log("SYSTEM", "Simulating GOAD DB backend span due to connection timeout.")
+        # Fallback realistic trace generation if GOAD subnet is unreachable
         with tracer.start_as_current_span(
             "SELECT master.wildlings",
             attributes={
@@ -667,17 +728,23 @@ async def got_wildlings(name: str = "Tormund"):
                 "db.name": "master",
                 "db.statement": f"SELECT * FROM wildlings WHERE name = '{name}'",
                 "net.peer.name": "castelblack.north.sevenkingdoms.local",
-                "net.peer.port": 1433
+                "net.peer.port": 1433,
+                "security.attack.owasp": "A03:2021",
+                "security.goad.target_domain": "north.sevenkingdoms.local",
             }
         ) as span:
             if "UNION" in name.upper() and "SELECT" in name.upper():
                 span.set_attribute("security.attack.type", "sqli")
+                span.set_attribute("security.attack.severity", "critical")
+                span.set_attribute("security.attack.mitre_id", "T1190")
+                span.set_attribute("security.attack.payload", name[:200])
+                span.set_attribute("security.flag_captured", True)
                 return {"status": "success", "data": "UNION result simulated! FLAG{7H3_W4LL_H45_B33N_BR34CH3D}"}
             return {"status": "error", "message": f"Wildling not found (DB Error): {str(e)}"}
 
 # CTF 8: SSRF to Meereen (Dragon Eggs)
 @app.get("/api/v1/got/dragons")
-async def got_dragons(url: str = "http://meereen.essos.local/api/dragon_locations"):
+async def got_dragons(request: Request, url: str = "http://meereen.essos.local/api/dragon_locations"):
     """
     Simulates a Server-Side Request Forgery fetching internal resources.
     """
@@ -698,31 +765,71 @@ async def got_dragons(url: str = "http://meereen.essos.local/api/dragon_location
                     "http.method": "GET",
                     "http.url": url,
                     "net.peer.name": "meereen.essos.local",
-                    "security.attack.type": "ssrf"
+                    "security.attack.type": "ssrf",
+                    "security.attack.severity": "critical",
+                    "security.attack.owasp": "A10:2021",
+                    "security.attack.mitre_id": "T1090",
+                    "security.ssrf.target_url": url,
+                    "security.source_ip": request.client.host,
                 }
             ) as span:
+                span.set_attribute("security.flag_captured", True)
                 return {"status": "success", "data": "Internal Network accessed realistically! FLAG{M07H3R_0F_DR4G0N5_55RF}"}
-        
+
         return {"status": "error", "message": f"Failed to fetch dragon eggs: {str(e)}"}
 
 # --- Legacy Vulnerabilities (Retained for Compatibility) ---
 
 @app.get("/api/v1/users/search")
-async def search_users(q: str):
+async def search_users(q: str, request: Request):
     """Vulnerable to SQL Injection."""
-    backend.push_log("SECURITY", f"SQL Injection attempt? query={q}")
-    if "'" in q or "--" in q:
-        backend.push_metric("AttackCount", 1.0, {"type": "SQLi"})
-        return JSONResponse({"error": "SQL Syntax Error near " + q, "exploited": True}, status_code=500)
+    tracer = trace.get_tracer(__name__)
+
+    if "'" in q or "--" in q or "UNION" in q.upper() or "1=1" in q:
+        with tracer.start_as_current_span("ctf.sqli", attributes={
+            "security.attack.type": "sqli",
+            "security.attack.severity": "critical",
+            "security.attack.owasp": "A03:2021",
+            "security.attack.mitre_id": "T1190",
+            "security.attack.payload": q[:200],
+            "security.source_ip": request.client.host,
+            "db.system": "sqlite",
+            "db.statement": f"SELECT * FROM users WHERE name = '{q}'",
+        }) as span:
+            span.set_attribute("security.flag_captured", True)
+            backend.push_log("SECURITY", f"CTF_SQLI: SQL Injection with {q}")
+            backend.push_metric("CTFFlagFound", 1.0, {"type": "SQLi"})
+            return {
+                "error": f"SQL Syntax Error near '{q}'",
+                "exploited": True,
+                "leaked_data": [
+                    {"username": "admin", "password_hash": "5f4dcc3b5aa765d61d8327deb882cf99"},
+                    {"username": "jon.snow", "password_hash": "e10adc3949ba59abbe56e057f20f883e"},
+                    {"username": "cersei", "password_hash": "FLAG{SQL1_DUM9_4LL_U53R5}"},
+                ]
+            }
     return {"results": [{"user": "admin"}, {"user": "demo"}]}
 
 @app.get("/api/v1/system/diagnostics")
-async def system_diag(cmd: str):
+async def system_diag(cmd: str, request: Request):
     """Vulnerable to Command Injection."""
-    backend.push_log("SECURITY", f"Command Injection attempt? cmd={cmd}")
-    if ";" in cmd or "|" in cmd or "whoami" in cmd:
-        backend.push_metric("AttackCount", 1.0, {"type": "RCE"})
-        return {"output": "WARNING: Suspicious characters detected. Simulated block."}
+    tracer = trace.get_tracer(__name__)
+
+    if ";" in cmd or "|" in cmd or "whoami" in cmd or "cat " in cmd:
+        with tracer.start_as_current_span("ctf.rce", attributes={
+            "security.attack.type": "rce",
+            "security.attack.severity": "critical",
+            "security.attack.owasp": "A03:2021",
+            "security.attack.mitre_id": "T1059",
+            "security.attack.payload": cmd[:200],
+            "security.source_ip": request.client.host,
+        }) as span:
+            span.set_attribute("security.flag_captured", True)
+            backend.push_log("SECURITY", f"CTF_RCE: Command injection with {cmd}")
+            backend.push_metric("CTFFlagFound", 1.0, {"type": "RCE"})
+            return {
+                "output": f"$ {cmd}\nuid=1000(appuser) gid=1000(appgroup) groups=1000(appgroup)\nappuser\nFLAG{{RC3_G4M3_0V3R}}"
+            }
     return {"output": f"Executing: {cmd}\nOutput: Simulated success."}
 
 # Mount static files
