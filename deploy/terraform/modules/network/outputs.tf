@@ -54,3 +54,8 @@ output "private_route_table_id" {
   description = "Private subnet route table OCID (used for LPG peering post-apply)"
   value       = oci_core_route_table.private.id
 }
+
+output "app_lpg_id" {
+  description = "App-side LPG OCID for GOAD peering (null if peering disabled)"
+  value       = var.enable_goad_peering ? oci_core_local_peering_gateway.app_to_goad[0].id : null
+}

@@ -52,3 +52,17 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+# --- GOAD Peering ---
+
+variable "enable_goad_peering" {
+  description = "Whether to create an LPG for peering with GOAD VCN"
+  type        = bool
+  default     = false
+}
+
+variable "goad_vcn_cidr" {
+  description = "CIDR block of the GOAD VCN (for route rules and security lists)"
+  type        = string
+  default     = "192.168.0.0/16"
+}

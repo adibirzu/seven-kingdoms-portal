@@ -136,6 +136,16 @@ resource "oci_core_route_table" "private" {
     network_entity_id = oci_core_service_gateway.main.id
   }
 
+  # Route to GOAD VCN via LPG (only when peering is enabled)
+  dynamic "route_rules" {
+    for_each = var.enable_goad_peering ? [1] : []
+    content {
+      destination       = var.goad_vcn_cidr
+      destination_type  = "CIDR_BLOCK"
+      network_entity_id = oci_core_local_peering_gateway.app_to_goad[0].id
+    }
+  }
+
   freeform_tags = var.tags
 }
 
@@ -224,6 +234,17 @@ resource "oci_core_security_list" "private" {
     tcp_options {
       min = 22
       max = 22
+    }
+  }
+
+  # Allow inbound from GOAD VCN (peered via LPG) — LDAP, MSSQL, WinRM
+  dynamic "ingress_security_rules" {
+    for_each = var.enable_goad_peering ? [1] : []
+    content {
+      protocol    = "all"
+      source      = var.goad_vcn_cidr
+      source_type = "CIDR_BLOCK"
+      stateless   = false
     }
   }
 
@@ -377,4 +398,20 @@ resource "oci_core_network_security_group_security_rule" "app_egress" {
   destination               = "0.0.0.0/0"
   destination_type          = "CIDR_BLOCK"
   stateless                 = false
+}
+
+# ═══════════════════════════════════════════════════════════════
+# GOAD VCN Peering — LPG (Local Peering Gateway)
+# ═══════════════════════════════════════════════════════════════
+# Creates an LPG on the app VCN side. The GOAD Terraform (goad/terraform/)
+# creates the other side and peers with this LPG via app_lpg_id variable.
+
+resource "oci_core_local_peering_gateway" "app_to_goad" {
+  count = var.enable_goad_peering ? 1 : 0
+
+  compartment_id = var.compartment_id
+  vcn_id         = oci_core_vcn.main.id
+  display_name   = "${var.project_name}-app-to-goad-lpg"
+
+  freeform_tags = var.tags
 }
