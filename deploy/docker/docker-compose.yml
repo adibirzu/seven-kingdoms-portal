@@ -1,0 +1,62 @@
+# Seven Kingdoms Portal — Multi-Infrastructure Deployment
+#
+# Usage:
+#   docker compose up --build                  (local development, inline env)
+#   docker compose --env-file .env up --build  (using .env file)
+#   docker compose up -d                       (daemon mode)
+#
+# For OKE/K8s, use deploy/kubernetes/ manifests.
+# For OCI Container Instances, use deploy/docker/oci-container-instance.json template.
+
+services:
+  portal:
+    build:
+      context: ../../
+      dockerfile: deploy/docker/Dockerfile
+    container_name: seven-kingdoms-portal
+    ports:
+      - "${APP_PORT:-9010}:${APP_PORT:-9010}"
+    env_file:
+      # Optional: load from .env file in project root (create from .env.local.example)
+      - path: ../../.env.local
+        required: false
+    environment:
+      # ── Deployment ────────────────────────────
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - APP_PORT=${APP_PORT:-9010}
+      - APP_WORKERS=${APP_WORKERS:-2}
+
+      # ── OCI Authentication ────────────────────
+      # Auth mode: auto | instance_principal | resource_principal | config_file | env_vars
+      - OCI_AUTH_MODE=${OCI_AUTH_MODE:-config_file}
+      - OCI_CONFIG_PROFILE=${OCI_CONFIG_PROFILE:-DEFAULT}
+
+      # ── OCI APM / OpenTelemetry ───────────────
+      - OCI_APM_ENDPOINT=${OCI_APM_ENDPOINT:-}
+      - OCI_APM_PUBLIC_DATAKEY=${OCI_APM_PUBLIC_DATAKEY:-}
+      - OCI_APM_PRIVATE_DATAKEY=${OCI_APM_PRIVATE_DATAKEY:-}
+
+      # ── OCI Logging ──────────────────────────
+      - OCI_LOG_OCID=${OCI_LOG_OCID:-}
+      - OCI_LOG_GROUP_OCID=${OCI_LOG_GROUP_OCID:-}
+
+      # ── OCI Monitoring ───────────────────────
+      - OCI_COMPARTMENT_OCID=${OCI_COMPARTMENT_OCID:-}
+      - OCI_MONITORING_NAMESPACE=${OCI_MONITORING_NAMESPACE:-CustomAttackMetrics}
+
+      # ── Portal ───────────────────────────────
+      - PORTAL_JWT_SECRET=${PORTAL_JWT_SECRET:-seven-kingdoms-secret-key-2024}
+
+    volumes:
+      # Mount OCI config for API key auth (local dev only — not needed on OCI infra)
+      - ${OCI_CONFIG_DIR:-${HOME}/.oci}:/home/appuser/.oci:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,urllib.request; urllib.request.urlopen(f'http://localhost:{os.environ.get(\"APP_PORT\",\"9010\")}/health')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+    restart: unless-stopped
+    labels:
+      app: seven-kingdoms-portal
+      component: c6-vulnerable-app

@@ -1,0 +1,21 @@
+# Development Environment Variables
+# Copy to terraform.tfvars and fill in your values
+
+# OCI Authentication
+tenancy_ocid     = "ocid1.tenancy.oc1..aaaaaaaa..."
+user_ocid        = "ocid1.user.oc1..aaaaaaaa..."
+fingerprint      = "aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99"
+private_key_path = "~/.oci/oci_api_key.pem"
+region           = "eu-frankfurt-1"
+compartment_id   = "ocid1.compartment.oc1..aaaaaaaa..."
+
+# Project
+project_name = "observability"
+
+# SSH Key
+ssh_public_key = "ssh-rsa AAAAB3NzaC1yc2E... your-key-here"
+
+# Network (use different CIDR from prod)
+vcn_cidr            = "10.1.0.0/16"
+public_subnet_cidr  = "10.1.1.0/24"
+private_subnet_cidr = "10.1.2.0/24"

@@ -1,0 +1,105 @@
+# OCI Observability Overview - Production Environment Variables
+# Copy this file to terraform.tfvars and fill in your values
+
+# =============================================================================
+# OCI Authentication
+# =============================================================================
+tenancy_ocid     = "ocid1.tenancy.oc1..aaaaaaaa..."
+user_ocid        = "ocid1.user.oc1..aaaaaaaa..."
+fingerprint      = "aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99"
+private_key_path = "~/.oci/oci_api_key.pem"
+region           = "eu-frankfurt-1"
+compartment_id   = "ocid1.compartment.oc1..aaaaaaaa..."
+
+# =============================================================================
+# Project Settings
+# =============================================================================
+project_name = "observability"
+environment  = "prod"
+
+# =============================================================================
+# Deployment Mode
+# =============================================================================
+# Options: "vm" (single VM), "oke" (Kubernetes), "hybrid" (both)
+deployment_mode = "vm"
+
+# =============================================================================
+# Network Settings
+# =============================================================================
+vcn_cidr            = "10.0.0.0/16"
+public_subnet_cidr  = "10.0.1.0/24"
+private_subnet_cidr = "10.0.2.0/24"
+oke_api_subnet_cidr = "10.0.3.0/24"
+
+# =============================================================================
+# VM Settings (for deployment_mode = "vm" or "hybrid")
+# =============================================================================
+instance_shape      = "VM.Standard.E4.Flex"
+instance_ocpus      = 2
+instance_memory_gb  = 16
+boot_volume_size_gb = 50
+
+# Your SSH public key for instance access
+ssh_public_key = "ssh-rsa AAAAB3NzaC1yc2E... your-key-here"
+
+# Set to true to create a bastion host for SSH access
+create_bastion = true
+
+# =============================================================================
+# OKE Settings (for deployment_mode = "oke" or "hybrid")
+# =============================================================================
+kubernetes_version = ""  # Empty for latest
+node_pool_size     = 3
+node_shape         = "VM.Standard.E4.Flex"
+node_ocpus         = 2
+node_memory_gb     = 16
+
+# =============================================================================
+# Load Balancer Settings
+# =============================================================================
+lb_shape         = "flexible"
+lb_min_bandwidth = 10
+lb_max_bandwidth = 100
+backend_port     = 9010
+health_check_path = "/"
+
+# =============================================================================
+# SSL Certificate (Optional - for HTTPS)
+# =============================================================================
+# Leave empty to skip SSL configuration (HTTP only)
+# For production, provide your SSL certificate details
+ssl_certificate_name   = ""
+ssl_public_certificate = ""  # Contents of certificate.pem
+ssl_private_key        = ""  # Contents of private-key.pem
+ssl_ca_certificate     = ""  # Contents of ca-certificate.pem
+
+# =============================================================================
+# DNS Settings
+# =============================================================================
+primary_hostname   = "observability.learnoci.cloud"
+secondary_hostname = "observability.cyber-sec.ro"
+
+# Set to true to create DNS zones in OCI
+# Set to false if zones already exist and provide zone IDs
+create_primary_dns_zone   = false
+primary_zone_name         = "learnoci.cloud"
+primary_zone_id           = ""  # Existing zone OCID if not creating
+
+create_secondary_dns_zone = false
+secondary_zone_name       = "cyber-sec.ro"
+secondary_zone_id         = ""  # Existing zone OCID if not creating
+
+dns_ttl                 = 300
+create_caa_records      = true
+enable_dns_health_check = false
+
+# =============================================================================
+# WAF Settings
+# =============================================================================
+waf_enable_access_control = true
+waf_enable_rate_limiting  = true
+waf_rate_limit            = 1000  # requests per minute
+waf_enable_protection     = true  # OWASP rules
+waf_block_countries       = false # Block suspicious countries
+waf_enable_logging        = true
+waf_log_retention_days    = 30

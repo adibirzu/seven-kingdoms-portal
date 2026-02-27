@@ -1,0 +1,61 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: observability-app-dev
+
+resources:
+  - ../../base
+
+namePrefix: dev-
+
+commonLabels:
+  environment: development
+
+# Override with your OCIR registry:
+#   kustomize edit set image observability-app=fra.ocir.io/NAMESPACE/observability-app:dev
+images:
+  - name: observability-app
+    newName: observability-app
+    newTag: dev
+
+# Development-specific patches
+patches:
+  # Single replica for development
+  - target:
+      kind: Deployment
+      name: observability-app
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "50m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "128Mi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "250m"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "256Mi"
+
+  # Disable HPA for development
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: observability-app
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
+      - op: replace
+        path: /spec/maxReplicas
+        value: 2
+
+configMapGenerator:
+  - name: observability-config
+    behavior: merge
+    literals:
+      - ENVIRONMENT=development
+      - APP_WORKERS=1

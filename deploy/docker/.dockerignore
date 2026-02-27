@@ -1,0 +1,54 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+env/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Documentation
+docs/
+
+# Deployment files (not needed in image)
+deploy/
+*.tfvars
+*.tfstate
+*.tfstate.backup
+
+# Agents / Sessions
+.agents/
+.claude/
+.serena/
+
+# Misc
+.DS_Store
+*.log
+server.log
+
+# Secrets — NEVER bake into images
+.env
+.env.local
+.env.local.bak
+*.pem
+*.key

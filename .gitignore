@@ -1,0 +1,31 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+*.log
+
+# Environment files
+.env
+.env.local
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+.terraform.lock.hcl
+
+# Security
+*.pem
+*.key
+*.pub
+ssh_key*
+id_rsa*
+
+# IDE / AI tooling
+.agents/
+.claude/
+.serena/
+.idea/
+.vscode/

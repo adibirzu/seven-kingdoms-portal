@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Seven Kingdoms Portal - Vulnerable Web Application</title>
+  <link rel="stylesheet" href="/static/portal.css">
+  <!-- OCI APM RUM Agent -->
+  <script>
+    window.apmrum = window.apmrum || {};
+    window.apmrum.serviceName = "SevenKingdomsPortal";
+    window.apmrum.webApplication = "SevenKingdomsPortal";
+    window.apmrum.ociDataUploadEndpoint = "__APM_ENDPOINT__";
+    window.apmrum.OracleAPMPublicDataKey = "__APM_PUBLIC_KEY__";
+  </script>
+</head>
+<body>
+
+<!-- ═══════ Login View ═══════ -->
+<div id="login-view">
+  <div class="login-container">
+    <div style="text-align:center;font-size:2.5rem;margin-bottom:8px">&#9876;</div>
+    <h2>Seven Kingdoms Portal</h2>
+    <p class="subtitle">OCI Vulnerable Application for Detection Engineering</p>
+
+    <div class="form-group">
+      <label>Username</label>
+      <input type="text" id="login-user" placeholder="jon.snow" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="login-pass" placeholder="Enter password" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label>Domain (optional - for GOAD AD auth)</label>
+      <select id="login-domain">
+        <option value="">Local Authentication</option>
+        <option value="sevenkingdoms.local">sevenkingdoms.local (Kingslanding)</option>
+        <option value="north.sevenkingdoms.local">north.sevenkingdoms.local (Winterfell)</option>
+        <option value="essos.local">essos.local (Meereen)</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" onclick="doLogin()">Sign In</button>
+    <div id="login-error" style="color:var(--error);font-size:0.8rem;margin-top:10px;display:none"></div>
+
+    <div class="login-hints">
+      <strong>Default Credentials:</strong><br>
+      <code>admin</code> / <code>admin</code> (superadmin)<br>
+      <code>jon.snow</code> / <code>ghost123</code><br>
+      <code>daenerys.targaryen</code> / <code>dracarys</code> (admin)<br>
+      <code>tyrion.lannister</code> / <code>wine4ever</code><br>
+      <code>arya.stark</code> / <code>needle</code><br>
+      <small style="color:var(--text-muted)">Hint: Try registering with <code>role=admin</code> in the body (A04: Mass Assignment)</small>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ App View ═══════ -->
+<div id="app-view" style="display:none">
+
+  <!-- Top Navigation -->
+  <div class="topnav">
+    <a href="/vulnerable" class="back-link">&larr; Observability</a>
+    <a href="/portal/" class="logo"><span class="crown">&#9876;</span> Seven Kingdoms</a>
+    <nav>
+      <a href="#" class="active" data-tab="dashboard">Dashboard</a>
+      <a href="#" data-tab="treasury">Treasury</a>
+      <a href="#" data-tab="ravens">Ravens</a>
+      <a href="#" data-tab="library">Library</a>
+      <a href="#" data-tab="attacks">Attacks</a>
+      <a href="#" data-tab="goad">GOAD Lab</a>
+      <a href="#" data-tab="detections">Detections</a>
+      <a href="#" data-tab="ctf">CTF Board</a>
+    </nav>
+    <div class="user-area">
+      <span class="user-badge" id="user-badge">Guest</span>
+      <button onclick="doLogout()">Sign Out</button>
+    </div>
+  </div>
+
+  <div class="main-content">
+    <div class="toast-container" id="toasts"></div>
+
+    <!-- ═══════ Dashboard Tab ═══════ -->
+    <div class="tab-content active" id="tab-dashboard">
+      <div class="dashboard-header">
+        <h1>Kingdom Overview</h1>
+        <p>Vulnerable application integrated with GOAD Active Directory lab. Each action generates OpenTelemetry traces for OCI APM detection.</p>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">Vulnerabilities</div>
+          <div class="stat-value danger">30</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Flags Captured</div>
+          <div class="stat-value gold" id="flags-count">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">OWASP Categories</div>
+          <div class="stat-value">10</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">GOAD Domains</div>
+          <div class="stat-value success">3</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">API Requests</div>
+          <div class="stat-value" id="req-count">0</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Attacks Detected</div>
+          <div class="stat-value danger" id="attack-count">0</div>
+        </div>
+      </div>
+
+      <!-- Quick access vulnerability cards -->
+      <div class="section-header">
+        <h2>Quick Attack Panel</h2>
+        <span class="badge badge-critical section-badge">Live</span>
+      </div>
+      <div class="vuln-grid">
+        <div class="vuln-card" onclick="apiCall('/portal/api/treasury/search?q=\\'%20UNION%20SELECT%20*%20FROM%20secrets--')">
+          <div class="card-header"><span class="card-icon">&#128137;</span><h3>SQL Injection - Treasury</h3></div>
+          <p>UNION-based SQLi against treasury search. Targets GOAD MSSQL when available.</p>
+          <div class="card-meta"><span class="badge badge-critical">Critical</span><span class="badge badge-owasp">A03</span><span class="badge badge-mitre">T1190</span></div>
+        </div>
+        <div class="vuln-card" onclick="apiCall('/portal/api/command/exec?cmd=id;whoami;cat%20/etc/passwd')">
+          <div class="card-header"><span class="card-icon">&#128026;</span><h3>Command Injection</h3></div>
+          <p>OS command injection via diagnostic endpoint. Chain commands with <code>;</code> or <code>|</code>.</p>
+          <div class="card-meta"><span class="badge badge-critical">Critical</span><span class="badge badge-owasp">A03</span><span class="badge badge-mitre">T1059</span></div>
+        </div>
+        <div class="vuln-card" onclick="apiCall('/portal/api/avatar/fetch?url=http://169.254.169.254/opc/v2/instance/')">
+          <div class="card-header"><span class="card-icon">&#127758;</span><h3>SSRF - Cloud Metadata</h3></div>
+          <p>Fetch OCI instance metadata via SSRF. Access IMDS at 169.254.169.254.</p>
+          <div class="card-meta"><span class="badge badge-critical">Critical</span><span class="badge badge-owasp">A10</span><span class="badge badge-mitre">T1090</span></div>
+        </div>
+        <div class="vuln-card" onclick="apiCall('/portal/api/files/download?path=../../../etc/passwd')">
+          <div class="card-header"><span class="card-icon">&#128193;</span><h3>Path Traversal</h3></div>
+          <p>Read arbitrary files via <code>../</code> traversal. Try <code>/etc/passwd</code> or <code>.env</code>.</p>
+          <div class="card-meta"><span class="badge badge-critical">Critical</span><span class="badge badge-owasp">A01</span><span class="badge badge-mitre">T1005</span></div>
+        </div>
+        <div class="vuln-card" onclick="apiCall('/portal/api/admin/panel', {headers:{'Authorization':'Bearer '+makeNoneJwt()}})">
+          <div class="card-header"><span class="card-icon">&#128274;</span><h3>JWT Algorithm None</h3></div>
+          <p>Bypass admin authentication by setting JWT algorithm to <code>none</code>.</p>
+          <div class="card-meta"><span class="badge badge-critical">Critical</span><span class="badge badge-owasp">A07</span><span class="badge badge-mitre">T1134</span></div>
+        </div>
+        <div class="vuln-card" onclick="apiCall('/portal/api/debug/crypto')">
+          <div class="card-header"><span class="card-icon">&#128272;</span><h3>Crypto Config Leak</h3></div>
+          <p>Debug endpoint exposes JWT secret, encryption keys, and hash algorithms.</p>
+          <div class="card-meta"><span class="badge badge-critical">Critical</span><span class="badge badge-owasp">A02</span><span class="badge badge-mitre">T1552</span></div>
+        </div>
+      </div>
+
+      <!-- Attack Runner -->
+      <div class="section-header">
+        <h2>Attack Runner</h2>
+        <span class="badge badge-critical section-badge">Trace Generator</span>
+      </div>
+      <div class="attack-runner">
+        <div class="runner-controls">
+          <button class="btn btn-primary" id="run-all-btn" onclick="runAllAttacks()" style="width:auto;padding:10px 24px">
+            &#9889; Run All Attacks
+          </button>
+          <button class="btn btn-outline" id="run-stop-btn" onclick="stopAttackRunner()" style="width:auto;padding:10px 16px;display:none">
+            Stop
+          </button>
+          <span class="runner-status" id="runner-status"></span>
+        </div>
+        <div class="runner-progress" id="runner-progress" style="display:none">
+          <div class="progress"><div class="progress-fill" id="runner-fill" style="width:0%"></div></div>
+          <span class="runner-counter" id="runner-counter">0 / 0</span>
+        </div>
+        <div class="runner-info">
+          Fires all 30 vulnerability endpoints sequentially, generating a burst of OpenTelemetry traces in OCI APM.
+          Use after configuring detection rules to validate they trigger.
+        </div>
+      </div>
+
+      <!-- Activity Feed -->
+      <div class="section-header">
+        <h2>Activity Feed</h2>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="btn btn-outline" style="width:auto;padding:4px 12px;font-size:0.75rem" onclick="clearActivityFeed()">Clear</button>
+          <span class="badge badge-low section-badge" id="feed-count">0 events</span>
+        </div>
+      </div>
+      <div class="activity-feed" id="activity-feed">
+        <div class="feed-empty">No activity yet. Click attack cards or run the Attack Runner to generate security events.</div>
+      </div>
+    </div>
+
+    <!-- ═══════ Treasury Tab ═══════ -->
+    <div class="tab-content" id="tab-treasury">
+      <div class="section-header"><h2>Royal Treasury</h2><span class="badge badge-owasp section-badge">A01 A03</span></div>
+      <div class="form-group" style="max-width:500px;margin-bottom:16px">
+        <label>Search Treasury (try: <code>' UNION SELECT * FROM secrets--</code>)</label>
+        <div style="display:flex;gap:8px">
+          <input type="text" id="treasury-search" placeholder="Search records..." style="flex:1">
+          <button class="btn btn-primary" style="width:auto;padding:8px 20px" onclick="searchTreasury()">Search</button>
+        </div>
+      </div>
+      <div class="vuln-grid">
+        <div class="vuln-card" onclick="apiCall('/portal/api/treasury/1001')">
+          <div class="card-header"><span class="card-icon">&#128176;</span><h3>Record #1001 - Lannister</h3></div>
+          <p>Gold mines income. Public record.</p>
+          <div class="card-meta"><span class="badge badge-low">Public</span></div>
+        </div>
+        <div class="vuln-card" onclick="apiCall('/portal/api/treasury/1003')">
+          <div class="card-header"><span class="card-icon">&#128176;</span><h3>Record #1003 - Targaryen (Classified)</h3></div>
+          <p>Dragon feeding budget. <strong>IDOR: Access without authorization.</strong></p>
+          <div class="card-meta"><span class="badge badge-high">IDOR</span><span class="badge badge-flag">FLAG</span></div>
+        </div>
+        <div class="vuln-card" onclick="apiCallPost('/portal/api/treasury/transfer', {from:'Lannister',to:'Stark',amount:-50000})">
+          <div class="card-header"><span class="card-icon">&#8634;</span><h3>Negative Transfer Exploit</h3></div>
+          <p>Business logic: transfer <code>-50,000</code> gold reverses direction.</p>
+          <div class="card-meta"><span class="badge badge-high">A04</span><span class="badge badge-flag">FLAG</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════ Ravens (Messages) Tab ═══════ -->
+    <div class="tab-content" id="tab-ravens">
+      <div class="section-header"><h2>Raven Messages</h2><span class="badge badge-owasp section-badge">A01 A03</span></div>
+      <div class="vuln-grid">
+        <div class="vuln-card" onclick="apiCall('/portal/api/messages')">
+          <div class="card-header"><span class="card-icon">&#128234;</span><h3>Read All Messages (IDOR)</h3></div>
+          <p>No auth check - read anyone's messages including admin credentials.</p>
+          <div class="card-meta"><span class="badge badge-high">IDOR</span><span class="badge badge-flag">FLAG</span></div>
+        </div>
+        <div class="vuln-card" onclick="apiCall('/portal/api/messages/3')">
+          <div class="card-header"><span class="card-icon">&#128273;</span><h3>Admin Credentials Message (#3)</h3></div>
+          <p>System admin backup message with DB passwords and SSH keys.</p>
+          <div class="card-meta"><span class="badge badge-critical">Critical</span><span class="badge badge-owasp">A02</span></div>
+        </div>
+        <div class="vuln-card" onclick="sendXSSMessage()">
+          <div class="card-header"><span class="card-icon">&#128375;</span><h3>Send XSS Raven</h3></div>
+          <p>Stored XSS: Send a message with <code>&lt;script&gt;</code> payload.</p>
+          <div class="card-meta"><span class="badge badge-high">XSS</span><span class="badge badge-owasp">A03</span><span class="badge badge-flag">FLAG</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════ Library (Files) Tab ═══════ -->
+    <div class="tab-content" id="tab-library">
+      <div class="section-header"><h2>Maester's Library</h2><span class="badge badge-owasp section-badge">A01 A05</span></div>
+      <div class="vuln-grid">
+        <div class="vuln-card" onclick="apiCall('/portal/api/files/list')">
+          <div class="card-header"><span class="card-icon">&#128194;</span><h3>List Files (Safe)</h3></div>
+          <p>Normal directory listing.</p>
+          <div class="card-meta"><span class="badge badge-low">Safe</span></div>
+        </div>
+        <div class="vuln-card" onclick="apiCall('/portal/api/files/list?dir=../../')">
+          <div class="card-header"><span class="card-icon">&#128194;</span><h3>Directory Traversal</h3></div>
+          <p>List files outside the app root with <code>../../</code>.</p>
+          <div class="card-meta"><span class="badge badge-high">Traversal</span><span class="badge badge-owasp">A01</span></div>
+        </div>
+        <div class="vuln-card" onclick="apiCall('/portal/api/files/download?path=../../../etc/shadow')">
+          <div class="card-header"><span class="card-icon">&#128196;</span><h3>Read /etc/shadow</h3></div>
+          <p>Download system password hash file via path traversal.</p>
+          <div class="card-meta"><span class="badge badge-critical">Critical</span><span class="badge badge-flag">FLAG</span></div>
+        </div>
+        <div class="vuln-card" onclick="apiCall('/portal/api/files/download?path=../.env.local')">
+          <div class="card-header"><span class="card-icon">&#9881;</span><h3>Read .env.local</h3></div>
+          <p>Application config with DB passwords and JWT secrets.</p>
+          <div class="card-meta"><span class="badge badge-critical">Critical</span><span class="badge badge-flag">FLAG</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════ Attacks Tab ═══════ -->
+    <div class="tab-content" id="tab-attacks">
+      <div class="section-header"><h2>Attack Simulation</h2><span class="badge badge-critical section-badge">OWASP Top 10</span></div>
+
+      <div class="tab-nav">
+        <button class="tab-btn active" data-subtab="injection">Injection (A03)</button>
+        <button class="tab-btn" data-subtab="access">Access Control (A01)</button>
+        <button class="tab-btn" data-subtab="auth">Auth Failures (A07)</button>
+        <button class="tab-btn" data-subtab="integrity">Integrity (A08)</button>
+        <button class="tab-btn" data-subtab="config">Misconfig (A05)</button>
+        <button class="tab-btn" data-subtab="ssrf">SSRF (A10)</button>
+        <button class="tab-btn" data-subtab="logging">Logging (A09)</button>
+      </div>
+
+      <!-- Injection subtab -->
+      <div class="tab-content active" id="subtab-injection">
+        <div class="vuln-grid">
+          <div class="vuln-card" onclick="apiCall('/portal/api/treasury/search?q=\\'%20UNION%20SELECT%20flag%20FROM%20secrets--')">
+            <div class="card-header"><span class="card-icon">&#128137;</span><h3>SQL Injection</h3></div>
+            <p>UNION-based injection on treasury search. Try: <code>' UNION SELECT * FROM secrets--</code></p>
+            <div class="card-meta"><span class="badge badge-critical">Critical</span><span class="badge badge-mitre">T1190</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCall('/portal/api/command/exec?cmd=cat%20/etc/passwd;id;whoami')">
+            <div class="card-header"><span class="card-icon">&#128026;</span><h3>OS Command Injection</h3></div>
+            <p>Shell metacharacter injection: <code>cat /etc/passwd;id;whoami</code></p>
+            <div class="card-meta"><span class="badge badge-critical">Critical</span><span class="badge badge-mitre">T1059</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCall('/portal/api/template/render?tpl={{7*7}}%20{{__class__.__mro__}}&name=test')">
+            <div class="card-header"><span class="card-icon">&#9881;</span><h3>SSTI</h3></div>
+            <p>Server-Side Template Injection: <code>{{7*7}}</code> evaluates to 49.</p>
+            <div class="card-meta"><span class="badge badge-critical">Critical</span><span class="badge badge-mitre">T1059</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCall('/portal/api/ldap/lookup?username=*&domain=sevenkingdoms.local')">
+            <div class="card-header"><span class="card-icon">&#128100;</span><h3>LDAP Injection</h3></div>
+            <p>Wildcard <code>*</code> enumerates all GOAD domain users.</p>
+            <div class="card-meta"><span class="badge badge-critical">Critical</span><span class="badge badge-goad">GOAD</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="sendXSSMessage()">
+            <div class="card-header"><span class="card-icon">&#128375;</span><h3>Stored XSS</h3></div>
+            <p>Inject <code>&lt;script&gt;alert(document.cookie)&lt;/script&gt;</code> via raven message.</p>
+            <div class="card-meta"><span class="badge badge-high">High</span><span class="badge badge-mitre">T1059.007</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Access Control subtab -->
+      <div class="tab-content" id="subtab-access">
+        <div class="vuln-grid">
+          <div class="vuln-card" onclick="apiCall('/portal/api/users/2')">
+            <div class="card-header"><span class="card-icon">&#128101;</span><h3>IDOR - User Profile</h3></div>
+            <p>Access Daenerys's profile (ID=2) without authorization.</p>
+            <div class="card-meta"><span class="badge badge-high">High</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCall('/portal/api/users?debug=true')">
+            <div class="card-header"><span class="card-icon">&#128274;</span><h3>User Dump + MD5 Hashes</h3></div>
+            <p>Debug parameter leaks all password hashes (MD5).</p>
+            <div class="card-meta"><span class="badge badge-critical">Critical</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCall('/portal/api/redirect?url=https://evil.example.com/phishing')">
+            <div class="card-header"><span class="card-icon">&#8594;</span><h3>Open Redirect</h3></div>
+            <p>Redirect to attacker-controlled URL for phishing.</p>
+            <div class="card-meta"><span class="badge badge-medium">Medium</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Auth subtab -->
+      <div class="tab-content" id="subtab-auth">
+        <div class="vuln-grid">
+          <div class="vuln-card" onclick="apiCall('/portal/api/admin/panel', {headers:{'Authorization':'Bearer '+makeNoneJwt()}})">
+            <div class="card-header"><span class="card-icon">&#128274;</span><h3>JWT None Algorithm</h3></div>
+            <p>Set JWT algorithm to <code>none</code> and role to <code>superadmin</code>.</p>
+            <div class="card-meta"><span class="badge badge-critical">Critical</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCall('/portal/api/auth/session-fixation?session_id=attacker-controlled-123')">
+            <div class="card-header"><span class="card-icon">&#128273;</span><h3>Session Fixation</h3></div>
+            <p>Pre-set session ID for victim to use.</p>
+            <div class="card-meta"><span class="badge badge-high">High</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCall('/portal/api/password-reset?username=admin')">
+            <div class="card-header"><span class="card-icon">&#128260;</span><h3>Predictable Reset Token</h3></div>
+            <p>Token = MD5(username:timestamp). Can predict future tokens.</p>
+            <div class="card-meta"><span class="badge badge-medium">Medium</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCallPost('/portal/api/auth/register', {username:'hacker_'+Date.now(),password:'test',role:'superadmin'})">
+            <div class="card-header"><span class="card-icon">&#128101;</span><h3>Mass Assignment</h3></div>
+            <p>Register with <code>role=superadmin</code> in request body.</p>
+            <div class="card-meta"><span class="badge badge-critical">Critical</span><span class="badge badge-owasp">A04</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Integrity subtab -->
+      <div class="tab-content" id="subtab-integrity">
+        <div class="vuln-grid">
+          <div class="vuln-card" onclick="apiCallPost('/portal/api/import/profile?data='+btoa('FLAG_INJECTED__reduce__os.system'), {})">
+            <div class="card-header"><span class="card-icon">&#128163;</span><h3>Pickle Deserialization RCE</h3></div>
+            <p>Python pickle with <code>__reduce__</code> for code execution.</p>
+            <div class="card-meta"><span class="badge badge-critical">Critical</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCallPost('/portal/api/import/json', {__proto__:{isAdmin:true},constructor:{prototype:{polluted:true}}})">
+            <div class="card-header"><span class="card-icon">&#128163;</span><h3>Prototype Pollution</h3></div>
+            <p>JSON with <code>__proto__</code> overwrites object properties.</p>
+            <div class="card-meta"><span class="badge badge-high">High</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Config subtab -->
+      <div class="tab-content" id="subtab-config">
+        <div class="vuln-grid">
+          <div class="vuln-card" onclick="apiCall('/portal/api/debug/env')">
+            <div class="card-header"><span class="card-icon">&#9881;</span><h3>Environment Variable Leak</h3></div>
+            <p>Debug endpoint exposes DB passwords, API keys, SSH paths.</p>
+            <div class="card-meta"><span class="badge badge-critical">Critical</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCall('/portal/api/debug/crypto')">
+            <div class="card-header"><span class="card-icon">&#128272;</span><h3>Crypto Configuration Leak</h3></div>
+            <p>JWT secret, sample admin JWT, hash algorithms exposed.</p>
+            <div class="card-meta"><span class="badge badge-critical">Critical</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCall('/portal/health')">
+            <div class="card-header"><span class="card-icon">&#128296;</span><h3>Health Info Disclosure</h3></div>
+            <p>Server hostname, Python version, session count, DB endpoints.</p>
+            <div class="card-meta"><span class="badge badge-medium">Medium</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SSRF subtab -->
+      <div class="tab-content" id="subtab-ssrf">
+        <div class="vuln-grid">
+          <div class="vuln-card" onclick="apiCall('/portal/api/avatar/fetch?url=http://169.254.169.254/opc/v2/instance/')">
+            <div class="card-header"><span class="card-icon">&#127758;</span><h3>SSRF - OCI IMDS</h3></div>
+            <p>Access cloud instance metadata via avatar URL fetch.</p>
+            <div class="card-meta"><span class="badge badge-critical">Critical</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCall('/portal/api/avatar/fetch?url=http://10.0.1.37:8080/health')">
+            <div class="card-header"><span class="card-icon">&#127758;</span><h3>SSRF - Internal Service</h3></div>
+            <p>Reach control plane at 10.0.1.37 via SSRF.</p>
+            <div class="card-meta"><span class="badge badge-high">High</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCallPost('/portal/api/webhook/send', {url:'http://192.168.56.10:389',data:{test:true}})">
+            <div class="card-header"><span class="card-icon">&#128279;</span><h3>Webhook to GOAD DC</h3></div>
+            <p>Send webhook to Kingslanding domain controller (internal LDAP).</p>
+            <div class="card-meta"><span class="badge badge-high">High</span><span class="badge badge-goad">GOAD</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Logging subtab -->
+      <div class="tab-content" id="subtab-logging">
+        <div class="vuln-grid">
+          <div class="vuln-card" onclick="apiCall('/portal/api/silent/transfer?from_account=Crown&to_account=IronBank&amount=999999')">
+            <div class="card-header"><span class="card-icon">&#128566;</span><h3>Silent Transfer (No Logs)</h3></div>
+            <p>Critical financial transfer with no security logging. Can you detect it in APM?</p>
+            <div class="card-meta"><span class="badge badge-high">High</span><span class="badge badge-owasp">A09</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCall('/portal/api/log-injection?msg=INFO%20Login%20successful%20user%3Dadmin%0aWARNING%20Access%20granted')">
+            <div class="card-header"><span class="card-icon">&#128221;</span><h3>Log Injection</h3></div>
+            <p>Inject fake log entries with newlines: <code>%0a</code> creates new log lines.</p>
+            <div class="card-meta"><span class="badge badge-medium">Medium</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════ GOAD Lab Tab ═══════ -->
+    <div class="tab-content" id="tab-goad">
+      <div class="section-header"><h2>GOAD Active Directory Lab</h2><span class="badge badge-goad section-badge">Live Integration</span></div>
+
+      <div class="goad-panel">
+        <h3>Infrastructure Connectivity</h3>
+        <div class="goad-grid" id="goad-status">
+          <div class="goad-item"><span class="dot checking"></span> Checking connectivity...</div>
+        </div>
+        <button class="btn btn-outline" style="width:auto;padding:6px 16px;margin-top:12px" onclick="checkGoadConnectivity()">Refresh Status</button>
+      </div>
+
+      <div class="vuln-grid">
+        <div class="vuln-card" onclick="apiCall('/portal/api/goad/domains')">
+          <div class="card-header"><span class="card-icon">&#127984;</span><h3>Domain Information</h3></div>
+          <p>List all GOAD AD domains, DCs, and trust relationships.</p>
+          <div class="card-meta"><span class="badge badge-goad">GOAD</span><span class="badge badge-low">Info</span></div>
+        </div>
+        <div class="vuln-card" onclick="apiCall('/portal/api/ldap/lookup?username=*&domain=sevenkingdoms.local')">
+          <div class="card-header"><span class="card-icon">&#128100;</span><h3>LDAP User Enumeration</h3></div>
+          <p>Wildcard LDAP injection to enumerate all domain users.</p>
+          <div class="card-meta"><span class="badge badge-critical">Critical</span><span class="badge badge-goad">GOAD</span><span class="badge badge-flag">FLAG</span></div>
+        </div>
+        <div class="vuln-card" onclick="apiCall('/portal/api/goad/kerberoast')">
+          <div class="card-header"><span class="card-icon">&#127915;</span><h3>Kerberoasting (T1558.003)</h3></div>
+          <p>Extract TGS ticket hash for MSSQL service account. Crack with hashcat -m 13100.</p>
+          <div class="card-meta"><span class="badge badge-critical">Critical</span><span class="badge badge-mitre">T1558</span><span class="badge badge-flag">FLAG</span></div>
+        </div>
+        <div class="vuln-card" onclick="apiCall('/portal/api/goad/dcsync?target=Administrator')">
+          <div class="card-header"><span class="card-icon">&#9760;</span><h3>DCSync (T1003.006)</h3></div>
+          <p>Replicate domain controller to extract Administrator NTLM hash.</p>
+          <div class="card-meta"><span class="badge badge-critical">Critical</span><span class="badge badge-mitre">T1003</span><span class="badge badge-flag">FLAG</span></div>
+        </div>
+        <div class="vuln-card" onclick="apiCall('/portal/api/goad/dcsync?target=krbtgt')">
+          <div class="card-header"><span class="card-icon">&#128081;</span><h3>Golden Ticket (krbtgt)</h3></div>
+          <p>Extract krbtgt hash for Golden Ticket generation.</p>
+          <div class="card-meta"><span class="badge badge-critical">Critical</span><span class="badge badge-mitre">T1558.001</span><span class="badge badge-flag">FLAG</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════ Detections Tab ═══════ -->
+    <div class="tab-content" id="tab-detections">
+      <div class="section-header">
+        <h2>Detection Rules</h2>
+        <span class="badge badge-owasp section-badge" id="detection-rule-count">Loading...</span>
+      </div>
+      <div class="detection-filters">
+        <select id="det-filter-severity" onchange="loadDetectionRules()">
+          <option value="">All Severities</option>
+          <option value="critical">Critical</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+        </select>
+        <select id="det-filter-mitre" onchange="loadDetectionRules()">
+          <option value="">All MITRE Tactics</option>
+          <option value="Initial Access">Initial Access</option>
+          <option value="Credential Access">Credential Access</option>
+          <option value="Execution">Execution</option>
+          <option value="Discovery">Discovery</option>
+          <option value="Lateral Movement">Lateral Movement</option>
+          <option value="Defense Evasion">Defense Evasion</option>
+          <option value="Collection">Collection</option>
+          <option value="Privilege Escalation">Privilege Escalation</option>
+        </select>
+        <select id="det-filter-owasp" onchange="loadDetectionRules()">
+          <option value="">All OWASP</option>
+          <option value="A01">A01 - Broken Access</option>
+          <option value="A02">A02 - Crypto Failures</option>
+          <option value="A03">A03 - Injection</option>
+          <option value="A04">A04 - Insecure Design</option>
+          <option value="A05">A05 - Misconfig</option>
+          <option value="A07">A07 - Auth Failures</option>
+          <option value="A08">A08 - Integrity</option>
+          <option value="A09">A09 - Logging</option>
+          <option value="A10">A10 - SSRF</option>
+        </select>
+      </div>
+      <div id="detection-rules-grid" class="detection-rules-grid">
+        <div style="color:var(--text-muted);padding:20px;text-align:center">Loading detection rules...</div>
+      </div>
+    </div>
+
+    <!-- ═══════ CTF Scoreboard Tab ═══════ -->
+    <div class="tab-content" id="tab-ctf">
+      <div class="section-header"><h2>CTF Scoreboard</h2><span class="badge badge-flag section-badge">Flags</span></div>
+
+      <div class="scoreboard">
+        <h3>Your Progress</h3>
+        <div class="score-bar">
+          <div class="progress"><div class="progress-fill" id="ctf-progress" style="width:0%"></div></div>
+          <span class="score-text" id="ctf-score">0 / 30</span>
+        </div>
+      </div>
+
+      <div id="ctf-flags" style="font-size:0.85rem;color:var(--text-secondary)">
+        <p>Capture flags by exploiting vulnerabilities. Each flag starts with <code>FLAG{</code>.</p>
+        <div id="flag-list" style="margin-top:12px"></div>
+      </div>
+    </div>
+
+  </div><!-- /main-content -->
+
+  <!-- Response Panel -->
+  <div class="response-panel" id="response-panel">
+    <div class="response-header">
+      <div>
+        <h3>Response <span class="status-code" id="resp-status"></span><span class="latency" id="resp-latency"></span></h3>
+      </div>
+      <button onclick="closePanel()">&times;</button>
+    </div>
+    <div class="response-body">
+      <pre id="resp-content"></pre>
+    </div>
+  </div>
+
+</div><!-- /app-view -->
+
+<script src="/static/portal.js"></script>
+
+<!-- Load APM RUM agent if configured -->
+<script>
+  const ep = window.apmrum?.ociDataUploadEndpoint;
+  if (ep && !ep.includes('__APM_')) {
+    const s = document.createElement('script');
+    s.src = ep + '/static/jslib/apmrum.min.js';
+    s.crossOrigin = 'anonymous';
+    document.head.appendChild(s);
+  }
+</script>
+</body>
+</html>

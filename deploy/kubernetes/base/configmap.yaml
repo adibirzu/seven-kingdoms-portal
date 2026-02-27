@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: observability-config
+  namespace: observability-app
+  labels:
+    app.kubernetes.io/name: observability
+data:
+  # ── Deployment ──────────────────────
+  ENVIRONMENT: "production"
+  APP_PORT: "9010"
+  APP_WORKERS: "4"
+
+  # ── OCI Auth ────────────────────────
+  # On OKE, use instance_principal or resource_principal (workload identity)
+  OCI_AUTH_MODE: "instance_principal"
+
+  # ── OCI Monitoring ──────────────────
+  OCI_MONITORING_NAMESPACE: "CustomAttackMetrics"

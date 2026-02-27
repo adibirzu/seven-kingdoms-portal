@@ -1,0 +1,16 @@
+fastapi>=0.110
+uvicorn[standard]>=0.24
+oci>=2.119.1
+python-dotenv>=1.0.0
+httpx>=0.27.0
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-instrumentation-fastapi
+opentelemetry-exporter-otlp
+lxml
+pymssql
+opentelemetry-instrumentation-pymssql
+# Portal dependencies
+PyJWT>=2.8.0
+ldap3>=2.9.1
+python-multipart>=0.0.6
