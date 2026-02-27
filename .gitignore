@@ -23,6 +23,10 @@ __pycache__/
 ssh_key*
 id_rsa*
 
+# Node.js (screenshot tool)
+node_modules/
+package-lock.json
+
 # IDE / AI tooling
 .agents/
 .claude/

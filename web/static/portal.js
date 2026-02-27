@@ -120,6 +120,11 @@ function switchTab(tab) {
   if (tab === 'goad') checkGoadConnectivity();
   // Load detection rules when switching to detections tab
   if (tab === 'detections') loadDetectionRules();
+  // Render encyclopedia on first visit
+  if (tab === 'learn' && typeof renderEncyclopedia === 'function') {
+    const content = document.getElementById('encyclopedia-content');
+    if (content && content.children.length <= 1) renderEncyclopedia();
+  }
 }
 
 
@@ -612,6 +617,28 @@ async function loadDetectionRules() {
     grid.innerHTML = `<div style="color:var(--error);padding:20px">Failed to load rules: ${e.message}</div>`;
   }
 }
+
+// ── Encyclopedia Search Filter ──────────────
+function filterEncyclopedia(query) {
+  const q = query.toLowerCase().trim();
+  document.querySelectorAll('.enc-category').forEach(cat => {
+    const attacks = cat.querySelectorAll('.enc-attack');
+    let anyVisible = false;
+    attacks.forEach(atk => {
+      const text = atk.textContent.toLowerCase();
+      const match = !q || text.includes(q);
+      atk.style.display = match ? '' : 'none';
+      if (match) anyVisible = true;
+    });
+    cat.style.display = anyVisible || !q ? '' : 'none';
+    // Auto-expand categories with matches when searching
+    if (q && anyVisible) {
+      const attacksContainer = cat.querySelector('.enc-attacks');
+      if (attacksContainer) attacksContainer.style.display = 'block';
+    }
+  });
+}
+
 
 function copyQuery(btn, query) {
   navigator.clipboard.writeText(query).then(() => {

@@ -4,23 +4,96 @@ A deliberately vulnerable web application themed around Game of Thrones, designe
 
 > **Warning**: This application contains intentional security vulnerabilities. Deploy only in isolated lab environments.
 
+## Screenshots
+
+### Dashboard
+The Kingdom Overview shows real-time stats: 30 vulnerabilities, 10 OWASP categories, 3 GOAD domains. The Quick Attack Panel lets you trigger critical attacks (SQLi, RCE, SSRF, Path Traversal, JWT bypass, Crypto leak) with one click.
+
+![Dashboard](docs/screenshots/02-dashboard.png)
+
+### Attack Encyclopedia (Learn Tab)
+Comprehensive educational guide to every vulnerability. Each entry documents how the attack works, what OpenTelemetry span attributes are generated, and how to detect it in OCI APM and Log Analytics.
+
+![Learn Overview](docs/screenshots/07-learn-overview.png)
+
+Expand any attack for step-by-step exploitation walkthrough, example payloads, real-world impact, and MITRE ATT&CK mapping:
+
+![Attack Detail](docs/screenshots/09-learn-attack-detail.png)
+
+Each attack includes side-by-side detection queries for OCI APM Trace Explorer and OCI Log Analytics, with copy-to-clipboard buttons:
+
+![Detection Queries](docs/screenshots/10-learn-detection-queries.png)
+
+### Detection Rules
+Browse all 20 detection rules with severity badges, MITRE technique IDs, OWASP categories, and one-click query copying:
+
+![Detections](docs/screenshots/11-detections.png)
+
+### Login
+Game of Thrones themed login with multiple user accounts and domain authentication (for GOAD Active Directory integration):
+
+![Login](docs/screenshots/01-login.png)
+
 ## What is this?
 
 Seven Kingdoms Portal is a "GOAD-style" (Game of Active Directory) web application that provides:
 
 - **30 intentional vulnerabilities** across OWASP Top 10 categories (SQLi, XSS, SSRF, IDOR, RCE, SSTI, etc.)
+- **22 attack entries** in the Attack Encyclopedia with educational walkthroughs
 - **20 detection rules** with pre-built APM + Log Analytics queries
 - **Full OpenTelemetry instrumentation** — every attack generates traces with security-specific span attributes
 - **OCI Observability integration** — APM, Log Analytics, Monitoring, custom metrics
 - **Interactive attack runner** — trigger vulnerabilities from the UI and see them detected in real-time
 
+## How Attacks Work
+
+### Attack Flow
+```
+User triggers attack (UI or API)
+  → FastAPI endpoint processes malicious input
+  → OpenTelemetry span records security attributes
+  → OCI APM receives the trace
+  → Detection rules match span attributes
+  → Alert fires in OCI Monitoring
+```
+
+### Example: SQL Injection (A03)
+
+1. **Attack**: User sends `' UNION SELECT username, password FROM users--` to the treasury search
+2. **OTel Span**: Sets `security.attack.type=sqli`, `security.attack.severity=critical`, `security.sqli.payload=...`
+3. **APM Detection**: `show (spans) where SpanAttribute['security.attack.type'] = 'sqli'`
+4. **LA Detection**: `'Log Source' = 'OCI APM Trace' | where security_attack_type = 'sqli' | stats count by security_source_ip`
+
+### Example: Kerberoasting (GOAD)
+
+1. **Attack**: Portal sends Kerberoasting request to GOAD domain controller
+2. **OTel Span**: Sets `security.attack.type=kerberoast`, `security.goad.target_domain=sevenkingdoms.local`
+3. **APM Detection**: Filter spans where `security.attack.type = 'kerberoast'`
+4. **Windows Event**: Event ID 4769 (TGS request with RC4 encryption) in domain controller logs
+
+## OWASP Categories Covered
+
+| Category | Attacks | Examples |
+|----------|---------|----------|
+| A01: Broken Access Control | 3 | IDOR, Path Traversal, Open Redirect |
+| A02: Cryptographic Failures | 2 | Config Exposure, MD5 Hashes |
+| A03: Injection | 5 | SQLi, RCE, SSTI, LDAP Injection, Stored XSS |
+| A04: Insecure Design | 2 | Mass Assignment, Negative Transfer |
+| A05: Security Misconfiguration | 1 | Environment Variable Exposure |
+| A07: Auth Failures | 3 | JWT None, Default Credentials, Session Fixation |
+| A08: Integrity Failures | 1 | Pickle Deserialization |
+| A09: Logging Failures | 2 | Silent Transfer, Log Injection |
+| A10: SSRF | 1 | Cloud IMDS Metadata Access |
+| GOAD (AD Attacks) | 2 | Kerberoasting, DCSync |
+
 ## Features
 
 ### Security / CTF
-- **Vulnerability Scenarios**: IDOR, Path Traversal, SQLi, XSS, SSRF, RCE, SSTI, LDAP Injection, Deserialization, JWT manipulation, Kerberoasting, DCSync simulation
+- **Attack Encyclopedia**: Educational walkthrough for every vulnerability with step-by-step exploitation, OTel attributes, and detection queries
 - **Detection Rules Tab**: Browse all 20 detection rules with copy-to-clipboard APM/LA queries
-- **Attack Runner**: Execute attack chains directly from the portal UI
+- **Attack Runner**: Execute all 30 attacks sequentially to generate APM traces
 - **Activity Feed**: Real-time log of all security events
+- **CTF Scoreboard**: Flag-based scoring across all vulnerability categories
 - **GOAD Integration**: Kerberoasting and DCSync attacks against Active Directory lab
 
 ### OCI Observability Overview
@@ -142,6 +215,13 @@ All 20 rules map to MITRE ATT&CK techniques and OWASP Top 10 categories:
 | SKP-017 | SSRF | Critical | T1090 | A10:2021 |
 | SKP-018 | Kerberoasting | Critical | T1558.003 | N/A |
 | ... | [+13 more](server/detection_rules.py) | | | |
+
+## Re-generating Screenshots
+
+```bash
+npm install
+node docs/take-screenshots.mjs
+```
 
 ## License
 

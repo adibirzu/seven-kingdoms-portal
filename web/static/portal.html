@@ -69,6 +69,7 @@
       <a href="#" data-tab="library">Library</a>
       <a href="#" data-tab="attacks">Attacks</a>
       <a href="#" data-tab="goad">GOAD Lab</a>
+      <a href="#" data-tab="learn">Learn</a>
       <a href="#" data-tab="detections">Detections</a>
       <a href="#" data-tab="ctf">CTF Board</a>
     </nav>
@@ -477,6 +478,25 @@
       </div>
     </div>
 
+    <!-- ═══════ Learn (Attack Encyclopedia) Tab ═══════ -->
+    <div class="tab-content" id="tab-learn">
+      <div class="section-header">
+        <h2>Attack Encyclopedia</h2>
+        <span class="badge badge-owasp section-badge">Educational</span>
+      </div>
+      <p class="enc-intro">
+        Comprehensive guide to every vulnerability in the Seven Kingdoms Portal. Each entry explains <strong>how the attack works</strong>,
+        what <strong>OpenTelemetry span attributes</strong> are generated, and exactly <strong>how to detect it</strong> in
+        OCI APM Trace Explorer and OCI Log Analytics. Click a category to expand, then click an attack for full details.
+      </p>
+      <div class="enc-search-bar">
+        <input type="text" id="enc-search" placeholder="Search attacks... (e.g., SQL injection, SSRF, kerberoast)" oninput="filterEncyclopedia(this.value)">
+      </div>
+      <div id="encyclopedia-content">
+        <div style="color:var(--text-muted);padding:20px;text-align:center">Loading encyclopedia...</div>
+      </div>
+    </div>
+
     <!-- ═══════ Detections Tab ═══════ -->
     <div class="tab-content" id="tab-detections">
       <div class="section-header">
@@ -554,6 +574,7 @@
 
 </div><!-- /app-view -->
 
+<script src="/static/attack-encyclopedia.js"></script>
 <script src="/static/portal.js"></script>
 
 <!-- Load APM RUM agent if configured -->
