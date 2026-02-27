@@ -1,0 +1,27 @@
+{
+  "name": "seven-kingdoms-portal",
+  "version": "1.0.0",
+  "description": "A deliberately vulnerable web application themed around Game of Thrones, designed for **security training**, **OCI Observability demonstrations**, and **CTF-style challenges**. Built with FastAPI and vanilla JS, fully instrumented with OpenTelemetry for attack detection via OCI APM and Log Analytics.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/adibirzu/seven-kingdoms-portal.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/adibirzu/seven-kingdoms-portal/issues"
+  },
+  "homepage": "https://github.com/adibirzu/seven-kingdoms-portal#readme",
+  "dependencies": {
+    "puppeteer": "^24.37.5"
+  }
+}
