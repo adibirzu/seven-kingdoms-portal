@@ -345,97 +345,171 @@ async def login(request: Request):
         - Verbose error messages distinguish valid/invalid usernames (A07)
     """
     ip, ua = _get_client_info(request)
-    body = await request.json()
-    username = body.get("username", "").strip()
-    password = body.get("password", "").strip()
-    domain = body.get("domain", "")
 
-    # Track brute force attempts
-    LOGIN_ATTEMPTS.setdefault(ip, []).append(time.time())
-    recent = [t for t in LOGIN_ATTEMPTS[ip] if t > time.time() - 60]
-    LOGIN_ATTEMPTS[ip] = recent
+    # ── Rich trace: wrap entire login flow ──
+    with tracer.start_as_current_span("auth.login_flow", attributes={
+        "auth.source_ip": ip,
+        "auth.user_agent": ua[:256] if ua else "",
+    }) as login_span:
 
-    if len(recent) > 10:
-        with security_span("brute_force", severity="high", source_ip=ip,
-                           username=username, user_agent=ua,
-                           extra_attrs={"security.login.attempts_per_minute": len(recent)}):
-            detection_event("brute_force", severity="high",
-                            description=f"Brute force detected: {len(recent)} attempts/min from {ip}",
-                            source_ip=ip, username=username)
+        # Step 1: Parse and validate input
+        with tracer.start_as_current_span("auth.parse_credentials") as parse_span:
+            body = await request.json()
+            username = body.get("username", "").strip()
+            password = body.get("password", "").strip()
+            domain = body.get("domain", "") or body.get("realm", "")
+            parse_span.set_attribute("auth.username", username)
+            parse_span.set_attribute("auth.domain", domain or "local")
+            parse_span.set_attribute("auth.has_password", bool(password))
+            login_span.set_attribute("auth.username", username)
 
-    # Try LDAP auth against GOAD first
-    if domain:
-        # VULN A03: LDAP Injection - domain passed directly to bind DN
-        ldap_special = any(c in username for c in ["*", "(", ")", "\\", "/", "\x00"])
-        if ldap_special:
-            with security_span("ldap_injection", severity="critical", payload=username,
-                               source_ip=ip, user_agent=ua,
-                               flag="FLAG{LD4P_1NJ3C710N_K1NG5L4ND1NG}"):
+        # Step 2: Rate limiting / brute force check
+        with tracer.start_as_current_span("auth.rate_limit_check") as rate_span:
+            LOGIN_ATTEMPTS.setdefault(ip, []).append(time.time())
+            recent = [t for t in LOGIN_ATTEMPTS[ip] if t > time.time() - 60]
+            LOGIN_ATTEMPTS[ip] = recent
+            rate_span.set_attribute("auth.attempts_per_minute", len(recent))
+            rate_span.set_attribute("auth.rate_limited", len(recent) > 10)
+
+            if len(recent) > 10:
+                with security_span("brute_force", severity="high", source_ip=ip,
+                                   username=username, user_agent=ua,
+                                   extra_attrs={"security.login.attempts_per_minute": len(recent)}):
+                    detection_event("brute_force", severity="high",
+                                    description=f"Brute force detected: {len(recent)} attempts/min from {ip}",
+                                    source_ip=ip, username=username)
+
+        # Step 3: LDAP authentication (if domain specified)
+        if domain and domain != "local":
+            with tracer.start_as_current_span("auth.ldap_authentication", attributes={
+                "ldap.domain": domain,
+                "ldap.username": username,
+            }) as ldap_span:
+                # VULN A03: LDAP Injection - domain passed directly to bind DN
+                with tracer.start_as_current_span("ldap.input_validation") as val_span:
+                    ldap_special = any(c in username for c in ["*", "(", ")", "\\", "/", "\x00"])
+                    val_span.set_attribute("ldap.injection_detected", ldap_special)
+
+                if ldap_special:
+                    with security_span("ldap_injection", severity="critical", payload=username,
+                                       source_ip=ip, user_agent=ua,
+                                       flag="FLAG{LD4P_1NJ3C710N_K1NG5L4ND1NG}"):
+                        login_span.set_attribute("auth.result", "ldap_injection")
+                        return JSONResponse({
+                            "status": "error",
+                            "message": f"LDAP Error: Invalid DN syntax near '{username}'",
+                            "flag": "FLAG{LD4P_1NJ3C710N_K1NG5L4ND1NG}",
+                            "hint": "LDAP injection detected! The username is passed directly to the bind DN."
+                        }, status_code=400)
+
+                with tracer.start_as_current_span("ldap.bind_attempt", attributes={
+                    "ldap.server.domain": domain,
+                }) as bind_span:
+                    ldap_result = _try_ldap_auth(username, password, domain)
+                    bind_span.set_attribute("ldap.bind_success", ldap_result is not None)
+
+                if ldap_result:
+                    with tracer.start_as_current_span("auth.create_session", attributes={
+                        "auth.method": "ldap",
+                        "auth.realm": ldap_result["realm"],
+                    }):
+                        session_id = secrets.token_hex(16)
+                        SESSIONS[session_id] = {
+                            "username": username,
+                            "role": "user",
+                            "realm": ldap_result["realm"],
+                            "auth_method": "ldap",
+                            "created_at": time.time(),
+                        }
+                    with tracer.start_as_current_span("auth.generate_jwt", attributes={
+                        "jwt.algorithm": JWT_ALGORITHM,
+                    }):
+                        token = _create_jwt(username, "user", ldap_result["realm"])
+
+                    login_span.set_attribute("auth.result", "success")
+                    login_span.set_attribute("auth.method", "ldap")
+                    resp = JSONResponse({
+                        "status": "success",
+                        "token": token,
+                        "user": {"username": username, "realm": ldap_result["realm"], "auth_method": "ldap"},
+                    })
+                    resp.set_cookie("portal_session", session_id, httponly=False)  # VULN: not httponly
+                    return resp
+
+                ldap_span.set_attribute("ldap.result", "auth_failed")
+
+        # Step 4: Local auth fallback
+        with tracer.start_as_current_span("auth.local_authentication", attributes={
+            "auth.method": "local",
+        }) as local_span:
+
+            with tracer.start_as_current_span("auth.lookup_user") as lookup_span:
+                user = USERS_DB.get(username)
+                lookup_span.set_attribute("auth.user_found", user is not None)
+
+            if not user:
+                # VULN A07: Username enumeration
+                login_span.set_attribute("auth.result", "user_not_found")
                 return JSONResponse({
                     "status": "error",
-                    "message": f"LDAP Error: Invalid DN syntax near '{username}'",
-                    "flag": "FLAG{LD4P_1NJ3C710N_K1NG5L4ND1NG}",
-                    "hint": "LDAP injection detected! The username is passed directly to the bind DN."
-                }, status_code=400)
+                    "message": f"User '{username}' not found in any realm",
+                }, status_code=401)
 
-        ldap_result = _try_ldap_auth(username, password, domain)
-        if ldap_result:
-            # Create session for LDAP user
-            session_id = secrets.token_hex(16)
-            SESSIONS[session_id] = {
-                "username": username,
-                "role": "user",
-                "realm": ldap_result["realm"],
-                "auth_method": "ldap",
-                "created_at": time.time(),
-            }
-            token = _create_jwt(username, "user", ldap_result["realm"])
+            # VULN A02: MD5 password comparison
+            with tracer.start_as_current_span("auth.verify_password", attributes={
+                "auth.hash_algorithm": "md5",
+            }) as pw_span:
+                pw_match = hashlib.md5(password.encode()).hexdigest() == user["password_hash"]
+                pw_span.set_attribute("auth.password_valid", pw_match)
+                # Check for default credentials
+                is_default = username == "admin" and password == "admin"
+                if is_default:
+                    with security_span("auth_bypass", severity="critical", source_ip=ip,
+                                       user_agent=ua, username=username,
+                                       flag="FLAG{D3F4ULT_CR3D5_4DM1N}"):
+                        pass
+
+            if not pw_match:
+                login_span.set_attribute("auth.result", "invalid_password")
+                return JSONResponse({
+                    "status": "error",
+                    "message": "Invalid password for user " + username,
+                }, status_code=401)
+
+            # Step 5: Create session and JWT
+            with tracer.start_as_current_span("auth.create_session", attributes={
+                "auth.method": "local",
+                "auth.role": user["role"],
+            }):
+                session_id = secrets.token_hex(16)
+                SESSIONS[session_id] = {
+                    "username": username,
+                    "role": user["role"],
+                    "realm": user.get("realm", ""),
+                    "auth_method": "local",
+                    "created_at": time.time(),
+                }
+
+            with tracer.start_as_current_span("auth.generate_jwt", attributes={
+                "jwt.algorithm": JWT_ALGORITHM,
+                "jwt.role": user["role"],
+            }):
+                token = _create_jwt(username, user["role"], user.get("realm", ""))
+
+            login_span.set_attribute("auth.result", "success")
+            login_span.set_attribute("auth.method", "local")
             resp = JSONResponse({
                 "status": "success",
                 "token": token,
-                "user": {"username": username, "realm": ldap_result["realm"], "auth_method": "ldap"},
+                "user": {
+                    "username": user["username"],
+                    "role": user["role"],
+                    "full_name": user["full_name"],
+                    "title": user["title"],
+                },
             })
-            resp.set_cookie("portal_session", session_id, httponly=False)  # VULN: not httponly
+            resp.set_cookie("portal_session", session_id, httponly=False, samesite="none")
             return resp
-
-    # Local auth fallback
-    user = USERS_DB.get(username)
-    if not user:
-        # VULN A07: Username enumeration
-        return JSONResponse({
-            "status": "error",
-            "message": f"User '{username}' not found in any realm",  # Reveals valid usernames
-        }, status_code=401)
-
-    # VULN A02: MD5 password comparison
-    if hashlib.md5(password.encode()).hexdigest() != user["password_hash"]:
-        return JSONResponse({
-            "status": "error",
-            "message": "Invalid password for user " + username,  # Confirms user exists
-        }, status_code=401)
-
-    # Create session
-    session_id = secrets.token_hex(16)
-    SESSIONS[session_id] = {
-        "username": username,
-        "role": user["role"],
-        "realm": user.get("realm", ""),
-        "auth_method": "local",
-        "created_at": time.time(),
-    }
-    token = _create_jwt(username, user["role"], user.get("realm", ""))
-    resp = JSONResponse({
-        "status": "success",
-        "token": token,
-        "user": {
-            "username": user["username"],
-            "role": user["role"],
-            "full_name": user["full_name"],
-            "title": user["title"],
-        },
-    })
-    resp.set_cookie("portal_session", session_id, httponly=False, samesite="none")
-    return resp
 
 
 @router.post("/api/auth/register")
@@ -517,22 +591,51 @@ async def get_user_profile(user_id: int, request: Request):
     """
     ip, ua = _get_client_info(request)
 
-    for user in USERS_DB.values():
-        if user["id"] == user_id:
-            # Check if accessing another user's data
+    # ── Rich trace: wrap profile access flow ──
+    with tracer.start_as_current_span("user.profile_access", attributes={
+        "user.requested_id": user_id,
+        "user.source_ip": ip,
+    }) as profile_span:
+
+        # Step 1: Check authorization
+        with tracer.start_as_current_span("user.check_authorization") as auth_span:
             current = _get_current_user(request)
-            if current and current["id"] != user_id:
+            auth_span.set_attribute("user.authenticated", current is not None)
+            auth_span.set_attribute("user.current_id", current["id"] if current else -1)
+            is_other_user = current and current["id"] != user_id
+            auth_span.set_attribute("user.accessing_other", is_other_user)
+
+        # Step 2: Lookup profile
+        with tracer.start_as_current_span("user.lookup_profile", attributes={
+            "user.target_id": user_id,
+        }) as lookup_span:
+            target_user = None
+            for user in USERS_DB.values():
+                if user["id"] == user_id:
+                    target_user = user
+                    break
+            lookup_span.set_attribute("user.found", target_user is not None)
+
+        if target_user:
+            # Step 3: IDOR detection
+            if is_other_user:
                 with security_span("idor", severity="high", source_ip=ip, user_agent=ua,
                                    username=current.get("username", "anonymous"),
                                    flag="FLAG{1D0R_PR0F1L3_L34K}",
-                                   extra_attrs={"security.idor.target_user_id": user_id}):
+                                   extra_attrs={
+                                       "security.idor.target_user_id": user_id,
+                                       "security.idor.current_user_id": current["id"],
+                                   }):
                     pass
+
+            profile_span.set_attribute("user.result", "found")
             return {
                 "status": "success",
-                "profile": {k: v for k, v in user.items() if k != "password_hash"},
+                "profile": {k: v for k, v in target_user.items() if k != "password_hash"},
             }
 
-    return JSONResponse({"status": "error", "message": "User not found"}, status_code=404)
+        profile_span.set_attribute("user.result", "not_found")
+        return JSONResponse({"status": "error", "message": "User not found"}, status_code=404)
 
 
 @router.get("/api/users")
@@ -623,51 +726,88 @@ async def treasury_search(request: Request, q: str = "", house: str = ""):
     """
     ip, ua = _get_client_info(request)
 
-    # Detect SQLi patterns
-    sqli_patterns = ["union", "select", "insert", "update", "delete", "drop", "exec",
-                     "--", "/*", "';", "' or", "1=1", "sleep(", "waitfor"]
-    is_sqli = any(p in q.lower() for p in sqli_patterns)
+    # ── Rich trace: wrap entire search flow ──
+    with tracer.start_as_current_span("treasury.search_flow", attributes={
+        "treasury.query": q[:256],
+        "treasury.house_filter": house,
+        "treasury.source_ip": ip,
+    }) as search_span:
 
-    if is_sqli:
-        with security_span("sqli", severity="critical", payload=q, source_ip=ip, user_agent=ua,
-                           flag="FLAG{7R345URY_SQL1_BR34CH}",
-                           extra_attrs={
-                               "db.system": "mssql",
-                               "db.statement": f"SELECT * FROM treasury WHERE description LIKE '%{q}%'",
-                               "security.sqli.pattern_matched": True,
-                           }):
-            # Try real GOAD MSSQL
-            raw_query = f"SELECT * FROM master.dbo.sysobjects WHERE name LIKE '%{q}%'"
-            real_result = _try_mssql_query("castelblack", raw_query)
-            if real_result is not None:
-                return {
-                    "status": "success",
-                    "source": "goad_mssql",
-                    "query": raw_query,
-                    "data": real_result,
-                    "flag": "FLAG{7R345URY_SQL1_BR34CH}",
-                }
+        # Step 1: Input analysis
+        with tracer.start_as_current_span("treasury.analyze_input") as analyze_span:
+            sqli_patterns = ["union", "select", "insert", "update", "delete", "drop", "exec",
+                             "--", "/*", "';", "' or", "1=1", "sleep(", "waitfor"]
+            is_sqli = any(p in q.lower() for p in sqli_patterns)
+            matched = [p for p in sqli_patterns if p in q.lower()]
+            analyze_span.set_attribute("treasury.sqli_detected", is_sqli)
+            analyze_span.set_attribute("treasury.patterns_matched", str(matched))
+            search_span.set_attribute("treasury.sqli_detected", is_sqli)
 
-            # Fallback simulation
-            return {
-                "status": "success",
-                "source": "simulated",
-                "query_executed": f"SELECT * FROM treasury WHERE description LIKE '%{q}%'",
-                "data": [
-                    {"id": 9999, "description": "UNION result", "secret": "FLAG{7R345URY_SQL1_BR34CH}"},
-                    {"id": 9998, "description": "sa_password: WinterIsComing2024!", "type": "credential_dump"},
-                ],
-                "flag": "FLAG{7R345URY_SQL1_BR34CH}",
-            }
+        if is_sqli:
+            # Step 2a: SQL Injection path
+            with security_span("sqli", severity="critical", payload=q, source_ip=ip, user_agent=ua,
+                               flag="FLAG{7R345URY_SQL1_BR34CH}",
+                               extra_attrs={
+                                   "db.system": "mssql",
+                                   "db.statement": f"SELECT * FROM treasury WHERE description LIKE '%{q}%'",
+                                   "security.sqli.pattern_matched": True,
+                               }):
+                # Step 3: Attempt GOAD MSSQL connection
+                with tracer.start_as_current_span("db.connect", attributes={
+                    "db.system": "mssql",
+                    "db.name": "master",
+                    "net.peer.name": "castelblack.north.sevenkingdoms.local",
+                    "net.peer.port": 1433,
+                }) as db_span:
+                    raw_query = f"SELECT * FROM master.dbo.sysobjects WHERE name LIKE '%{q}%'"
 
-    # Normal search
-    results = [t for t in TREASURY_DB
-               if q.lower() in t.get("description", "").lower()
-               or q.lower() in t.get("house", "").lower()]
-    if house:
-        results = [t for t in results if t.get("house", "").lower() == house.lower()]
+                    with tracer.start_as_current_span("db.execute_query", attributes={
+                        "db.statement": raw_query[:512],
+                    }):
+                        real_result = _try_mssql_query("castelblack", raw_query)
+                        db_span.set_attribute("db.result_source", "goad" if real_result is not None else "simulated")
 
-    return {"status": "success", "data": results, "total": len(results)}
+                    if real_result is not None:
+                        with tracer.start_as_current_span("db.process_results", attributes={
+                            "db.result_count": len(real_result),
+                        }):
+                            search_span.set_attribute("treasury.result_source", "goad_mssql")
+                            return {
+                                "status": "success",
+                                "source": "goad_mssql",
+                                "query": raw_query,
+                                "data": real_result,
+                                "flag": "FLAG{7R345URY_SQL1_BR34CH}",
+                            }
+
+                # Step 4: Fallback simulation
+                with tracer.start_as_current_span("db.simulated_response", attributes={
+                    "db.simulated": True,
+                }):
+                    search_span.set_attribute("treasury.result_source", "simulated")
+                    return {
+                        "status": "success",
+                        "source": "simulated",
+                        "query_executed": f"SELECT * FROM treasury WHERE description LIKE '%{q}%'",
+                        "data": [
+                            {"id": 9999, "description": "UNION result", "secret": "FLAG{7R345URY_SQL1_BR34CH}"},
+                            {"id": 9998, "description": "sa_password: WinterIsComing2024!", "type": "credential_dump"},
+                        ],
+                        "flag": "FLAG{7R345URY_SQL1_BR34CH}",
+                    }
+
+        # Step 2b: Normal search path
+        with tracer.start_as_current_span("treasury.local_search", attributes={
+            "treasury.search_term": q[:128],
+        }) as local_span:
+            results = [t for t in TREASURY_DB
+                       if q.lower() in t.get("description", "").lower()
+                       or q.lower() in t.get("house", "").lower()]
+            if house:
+                results = [t for t in results if t.get("house", "").lower() == house.lower()]
+            local_span.set_attribute("treasury.result_count", len(results))
+
+        return {"status": "success", "data": results, "total": len(results)}
 
 
 @router.get("/api/treasury/{record_id}")
@@ -691,61 +831,105 @@ async def get_treasury_record(record_id: int, request: Request):
 
 
 @router.get("/api/command/exec")
-async def command_exec(request: Request, cmd: str = "id"):
+@router.post("/api/command/exec")
+async def command_exec(request: Request, cmd: str = ""):
     """Command injection via diagnostic endpoint.
 
     VULN A03: Shell command injection - input passed to subprocess.
     """
     ip, ua = _get_client_info(request)
 
-    # Detect command injection
-    dangerous_chars = [";", "|", "&", "`", "$", "\n", "&&", "||"]
-    dangerous_cmds = ["whoami", "id", "cat", "ls", "wget", "curl", "nc", "ncat",
-                      "python", "perl", "ruby", "bash", "sh", "powershell"]
-    is_injection = (any(c in cmd for c in dangerous_chars) or
-                    any(c in cmd.lower() for c in dangerous_cmds))
+    # Accept command from JSON body (POST) or query param (GET)
+    if request.method == "POST" and not cmd:
+        try:
+            body = await request.json()
+            cmd = body.get("command", "") or body.get("cmd", "")
+        except Exception:
+            pass
+    cmd = cmd or "id"
 
-    if is_injection:
-        with security_span("rce", severity="critical", payload=cmd, source_ip=ip, user_agent=ua,
-                           flag="FLAG{C0MM4ND_1NJ3CT10N_RCE}",
-                           extra_attrs={"security.rce.command": cmd}):
-            # Simulate command output (don't actually execute)
-            simulated_outputs = {
-                "whoami": "observability",
-                "id": "uid=1001(observability) gid=1001(observability) groups=1001(observability)",
-                "cat /etc/passwd": "root:x:0:0:root:/root:/bin/bash\nobservability:x:1001:1001::/opt/observability:/bin/false",
-                "uname -a": "Linux seven-kingdoms 5.15.0-1050-oracle #56-Ubuntu SMP x86_64 GNU/Linux",
-            }
-            # Find matching simulated output
-            output = "Command executed (simulated)"
-            for key, val in simulated_outputs.items():
-                if key in cmd.lower():
-                    output = val
-                    break
+    # ── Rich trace: wrap entire command flow ──
+    with tracer.start_as_current_span("system.command_flow", attributes={
+        "system.command": cmd[:256],
+        "system.source_ip": ip,
+    }) as cmd_span:
 
-            return {
-                "status": "success",
-                "command": cmd,
-                "output": output,
-                "flag": "FLAG{C0MM4ND_1NJ3CT10N_RCE}",
-                "warning": "Command injection detected!",
-            }
+        # Step 1: Parse and analyze command
+        with tracer.start_as_current_span("system.parse_command") as parse_span:
+            dangerous_chars = [";", "|", "&", "`", "$", "\n", "&&", "||"]
+            dangerous_cmds = ["whoami", "id", "cat", "ls", "wget", "curl", "nc", "ncat",
+                              "python", "perl", "ruby", "bash", "sh", "powershell"]
+            chars_found = [c for c in dangerous_chars if c in cmd]
+            cmds_found = [c for c in dangerous_cmds if c in cmd.lower()]
+            is_injection = bool(chars_found or cmds_found)
+            parse_span.set_attribute("system.dangerous_chars", str(chars_found))
+            parse_span.set_attribute("system.dangerous_cmds", str(cmds_found))
+            parse_span.set_attribute("system.injection_detected", is_injection)
 
-    # Safe commands only
-    allowed = ["uptime", "date", "df -h", "free -m"]
-    if cmd in allowed:
-        return {"status": "success", "command": cmd, "output": f"Simulated output for: {cmd}"}
+        if is_injection:
+            # Step 2: Security detection
+            with security_span("rce", severity="critical", payload=cmd, source_ip=ip, user_agent=ua,
+                               flag="FLAG{C0MM4ND_1NJ3CT10N_RCE}",
+                               extra_attrs={"security.rce.command": cmd}):
 
-    return JSONResponse({"status": "error", "message": f"Command '{cmd}' not in allowed list: {allowed}"}, status_code=403)
+                # Step 3: Simulate command execution
+                with tracer.start_as_current_span("system.execute", attributes={
+                    "system.shell": "/bin/bash",
+                    "system.simulated": True,
+                }) as exec_span:
+                    simulated_outputs = {
+                        "whoami": "observability",
+                        "id": "uid=1001(observability) gid=1001(observability) groups=1001(observability)",
+                        "cat /etc/passwd": "root:x:0:0:root:/root:/bin/bash\nobservability:x:1001:1001::/opt/observability:/bin/false",
+                        "uname -a": "Linux seven-kingdoms 5.15.0-1050-oracle #56-Ubuntu SMP x86_64 GNU/Linux",
+                    }
+                    output = "Command executed (simulated)"
+                    for key, val in simulated_outputs.items():
+                        if key in cmd.lower():
+                            output = val
+                            break
+                    exec_span.set_attribute("system.output_length", len(output))
+
+                cmd_span.set_attribute("system.result", "injection_detected")
+                return {
+                    "status": "success",
+                    "command": cmd,
+                    "output": output,
+                    "flag": "FLAG{C0MM4ND_1NJ3CT10N_RCE}",
+                    "warning": "Command injection detected!",
+                }
+
+        # Step 2b: Safe command execution
+        with tracer.start_as_current_span("system.safe_execute", attributes={
+            "system.command": cmd,
+        }):
+            allowed = ["uptime", "date", "df -h", "free -m"]
+            if cmd in allowed:
+                cmd_span.set_attribute("system.result", "allowed")
+                return {"status": "success", "command": cmd, "output": f"Simulated output for: {cmd}"}
+
+            cmd_span.set_attribute("system.result", "blocked")
+            return JSONResponse({"status": "error", "message": f"Command '{cmd}' not in allowed list: {allowed}"}, status_code=403)
 
 
 @router.get("/api/template/render")
-async def template_render(request: Request, tpl: str = "Hello, {{name}}!", name: str = "traveler"):
+@router.post("/api/template/render")
+async def template_render(request: Request, tpl: str = "", name: str = "traveler"):
     """Server-Side Template Injection.
 
     VULN A03: User input evaluated in template expression.
     """
     ip, ua = _get_client_info(request)
+
+    # Accept template from JSON body (POST) or query param (GET)
+    if request.method == "POST" and not tpl:
+        try:
+            body = await request.json()
+            tpl = body.get("template", "") or body.get("tpl", "")
+            name = body.get("name", name)
+        except Exception:
+            pass
+    tpl = tpl or "Hello, {{name}}!"
 
     # Detect SSTI patterns
     ssti_patterns = ["{{", "}}", "{%", "__class__", "__mro__", "__subclasses__",
@@ -782,47 +966,76 @@ async def ldap_lookup(request: Request, username: str = "", domain: str = "seven
     """
     ip, ua = _get_client_info(request)
 
-    # The LDAP filter would be: (&(sAMAccountName={username})(objectClass=user))
-    ldap_filter = f"(&(sAMAccountName={username})(objectClass=user))"
+    # ── Rich trace: wrap entire LDAP lookup flow ──
+    with tracer.start_as_current_span("ldap.lookup_flow", attributes={
+        "ldap.username": username[:128],
+        "ldap.domain": domain,
+        "ldap.source_ip": ip,
+    }) as ldap_span:
 
-    # Detect LDAP injection
-    ldap_special = any(c in username for c in ["*", "(", ")", "\\", "|", "&", "\x00"])
+        # Step 1: Build LDAP filter
+        with tracer.start_as_current_span("ldap.build_filter") as filter_span:
+            ldap_filter = f"(&(sAMAccountName={username})(objectClass=user))"
+            filter_span.set_attribute("ldap.filter", ldap_filter)
 
-    if ldap_special:
-        with security_span("ldap_injection", severity="critical",
-                           payload=f"filter={ldap_filter}", source_ip=ip, user_agent=ua,
-                           flag="FLAG{LD4P_F1LT3R_1NJ3CT10N}",
-                           extra_attrs={
-                               "security.ldap.filter": ldap_filter,
-                               "security.ldap.domain": domain,
-                           }):
-            # Simulate LDAP injection results
-            if "*" in username:
-                return {
-                    "status": "success",
-                    "filter_used": ldap_filter,
-                    "results": [
-                        {"dn": "CN=Administrator,CN=Users,DC=sevenkingdoms,DC=local", "sAMAccountName": "Administrator"},
-                        {"dn": "CN=krbtgt,CN=Users,DC=sevenkingdoms,DC=local", "sAMAccountName": "krbtgt"},
-                        {"dn": "CN=arya.stark,CN=Users,DC=north,DC=sevenkingdoms,DC=local", "sAMAccountName": "arya.stark"},
-                    ],
-                    "flag": "FLAG{LD4P_F1LT3R_1NJ3CT10N}",
-                    "hint": "Wildcard * enumerated all domain users!",
-                }
+        # Step 2: Analyze for injection
+        with tracer.start_as_current_span("ldap.analyze_input") as analyze_span:
+            ldap_special = any(c in username for c in ["*", "(", ")", "\\", "|", "&", "\x00"])
+            special_chars = [c for c in ["*", "(", ")", "\\", "|", "&"] if c in username]
+            analyze_span.set_attribute("ldap.injection_detected", ldap_special)
+            analyze_span.set_attribute("ldap.special_chars", str(special_chars))
 
-            return {
-                "status": "success",
-                "filter_used": ldap_filter,
-                "results": [{"dn": "CN=injected,DC=local", "note": "LDAP filter was manipulated"}],
-                "flag": "FLAG{LD4P_F1LT3R_1NJ3CT10N}",
-            }
+        if ldap_special:
+            # Step 3a: LDAP injection detected
+            with security_span("ldap_injection", severity="critical",
+                               payload=f"filter={ldap_filter}", source_ip=ip, user_agent=ua,
+                               flag="FLAG{LD4P_F1LT3R_1NJ3CT10N}",
+                               extra_attrs={
+                                   "security.ldap.filter": ldap_filter,
+                                   "security.ldap.domain": domain,
+                               }):
 
-    # Normal lookup
-    user = USERS_DB.get(username)
-    if user:
-        return {"status": "success", "results": [{"username": user["username"], "email": user["email"],
-                                                    "realm": user.get("realm", "")}]}
-    return {"status": "success", "results": [], "message": f"No user found matching '{username}'"}
+                with tracer.start_as_current_span("ldap.execute_injected_query", attributes={
+                    "ldap.filter": ldap_filter,
+                    "ldap.server": domain,
+                    "ldap.simulated": True,
+                }) as query_span:
+                    if "*" in username:
+                        query_span.set_attribute("ldap.result_count", 3)
+                        ldap_span.set_attribute("ldap.result", "wildcard_enumeration")
+                        return {
+                            "status": "success",
+                            "filter_used": ldap_filter,
+                            "results": [
+                                {"dn": "CN=Administrator,CN=Users,DC=sevenkingdoms,DC=local", "sAMAccountName": "Administrator"},
+                                {"dn": "CN=krbtgt,CN=Users,DC=sevenkingdoms,DC=local", "sAMAccountName": "krbtgt"},
+                                {"dn": "CN=arya.stark,CN=Users,DC=north,DC=sevenkingdoms,DC=local", "sAMAccountName": "arya.stark"},
+                            ],
+                            "flag": "FLAG{LD4P_F1LT3R_1NJ3CT10N}",
+                            "hint": "Wildcard * enumerated all domain users!",
+                        }
+
+                    query_span.set_attribute("ldap.result_count", 1)
+                    ldap_span.set_attribute("ldap.result", "filter_injection")
+                    return {
+                        "status": "success",
+                        "filter_used": ldap_filter,
+                        "results": [{"dn": "CN=injected,DC=local", "note": "LDAP filter was manipulated"}],
+                        "flag": "FLAG{LD4P_F1LT3R_1NJ3CT10N}",
+                    }
+
+        # Step 3b: Normal lookup
+        with tracer.start_as_current_span("ldap.normal_search", attributes={
+            "ldap.search_term": username,
+        }) as search_span:
+            user = USERS_DB.get(username)
+            search_span.set_attribute("ldap.user_found", user is not None)
+            if user:
+                ldap_span.set_attribute("ldap.result", "found")
+                return {"status": "success", "results": [{"username": user["username"], "email": user["email"],
+                                                            "realm": user.get("realm", "")}]}
+            ldap_span.set_attribute("ldap.result", "not_found")
+            return {"status": "success", "results": [], "message": f"No user found matching '{username}'"}
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -938,36 +1151,69 @@ async def download_file(request: Request, path: str = "readme.txt"):
     """
     ip, ua = _get_client_info(request)
 
-    # Detect path traversal
-    if ".." in path or path.startswith("/"):
-        with security_span("path_traversal", severity="critical", payload=path,
-                           source_ip=ip, user_agent=ua,
-                           flag="FLAG{P4TH_TR4V3RS4L_LFI}",
-                           extra_attrs={"security.file.path": path}):
-            # Simulate file content
-            if "/etc/passwd" in path:
-                return {"status": "success", "path": path,
-                        "content": "root:x:0:0:root:/root:/bin/bash\nobservability:x:1001:1001::/opt/observability:/bin/false\n",
-                        "flag": "FLAG{P4TH_TR4V3RS4L_LFI}"}
-            if "/etc/shadow" in path:
-                return {"status": "success", "path": path,
-                        "content": "root:$6$salted$hashedpassword:19000:0:99999:7:::\n",
-                        "flag": "FLAG{P4TH_TR4V3RS4L_LFI}"}
-            if ".env" in path or "config" in path.lower():
-                return {"status": "success", "path": path,
-                        "content": "DB_PASSWORD=WinterIsComing2024!\nJWT_SECRET=seven-kingdoms-secret-key-2024\n",
-                        "flag": "FLAG{P4TH_TR4V3RS4L_LFI}"}
-            return {"status": "success", "path": path, "content": "(file content simulated)",
-                    "flag": "FLAG{P4TH_TR4V3RS4L_LFI}"}
+    # ── Rich trace: wrap entire file access flow ──
+    with tracer.start_as_current_span("file.download_flow", attributes={
+        "file.requested_path": path[:256],
+        "file.source_ip": ip,
+    }) as file_span:
 
-    # Safe file listing
-    safe_files = {
-        "readme.txt": "Welcome to the Seven Kingdoms Portal. This is a demo application.",
-        "changelog.md": "## v1.0.0\n- Initial release\n- Added treasury module\n- Added raven messaging",
-    }
-    if path in safe_files:
-        return {"status": "success", "path": path, "content": safe_files[path]}
-    return JSONResponse({"status": "error", "message": f"File '{path}' not found"}, status_code=404)
+        # Step 1: Path analysis
+        with tracer.start_as_current_span("file.analyze_path") as analyze_span:
+            has_traversal = ".." in path or path.startswith("/")
+            analyze_span.set_attribute("file.traversal_detected", has_traversal)
+            analyze_span.set_attribute("file.path_length", len(path))
+            analyze_span.set_attribute("file.traversal_depth", path.count(".."))
+
+        if has_traversal:
+            # Step 2: Path traversal detected
+            with security_span("path_traversal", severity="critical", payload=path,
+                               source_ip=ip, user_agent=ua,
+                               flag="FLAG{P4TH_TR4V3RS4L_LFI}",
+                               extra_attrs={"security.file.path": path}):
+
+                # Step 3: Resolve and read file
+                with tracer.start_as_current_span("file.resolve_path", attributes={
+                    "file.original_path": path[:256],
+                    "file.simulated": True,
+                }) as resolve_span:
+                    if "/etc/passwd" in path:
+                        resolve_span.set_attribute("file.resolved", "/etc/passwd")
+                        file_span.set_attribute("file.result", "sensitive_file_read")
+                        return {"status": "success", "path": path,
+                                "content": "root:x:0:0:root:/root:/bin/bash\nobservability:x:1001:1001::/opt/observability:/bin/false\n",
+                                "flag": "FLAG{P4TH_TR4V3RS4L_LFI}"}
+                    if "/etc/shadow" in path:
+                        resolve_span.set_attribute("file.resolved", "/etc/shadow")
+                        file_span.set_attribute("file.result", "sensitive_file_read")
+                        return {"status": "success", "path": path,
+                                "content": "root:$6$salted$hashedpassword:19000:0:99999:7:::\n",
+                                "flag": "FLAG{P4TH_TR4V3RS4L_LFI}"}
+                    if ".env" in path or "config" in path.lower():
+                        resolve_span.set_attribute("file.resolved", path)
+                        file_span.set_attribute("file.result", "config_file_read")
+                        return {"status": "success", "path": path,
+                                "content": "DB_PASSWORD=WinterIsComing2024!\nJWT_SECRET=seven-kingdoms-secret-key-2024\n",
+                                "flag": "FLAG{P4TH_TR4V3RS4L_LFI}"}
+                    resolve_span.set_attribute("file.resolved", path)
+                    return {"status": "success", "path": path, "content": "(file content simulated)",
+                            "flag": "FLAG{P4TH_TR4V3RS4L_LFI}"}
+
+        # Step 2b: Safe file access
+        with tracer.start_as_current_span("file.safe_read", attributes={
+            "file.path": path,
+        }) as safe_span:
+            safe_files = {
+                "readme.txt": "Welcome to the Seven Kingdoms Portal. This is a demo application.",
+                "changelog.md": "## v1.0.0\n- Initial release\n- Added treasury module\n- Added raven messaging",
+            }
+            if path in safe_files:
+                safe_span.set_attribute("file.found", True)
+                file_span.set_attribute("file.result", "safe_read")
+                return {"status": "success", "path": path, "content": safe_files[path]}
+
+            safe_span.set_attribute("file.found", False)
+            file_span.set_attribute("file.result", "not_found")
+            return JSONResponse({"status": "error", "message": f"File '{path}' not found"}, status_code=404)
 
 
 @router.get("/api/files/list")

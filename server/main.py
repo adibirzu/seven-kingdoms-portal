@@ -705,54 +705,79 @@ async def got_wildlings(name: str = "Tormund"):
     """
     Simulates a UNION-based SQL injection connecting to the GOAD castelblack DB.
     """
-    backend.push_log("SECURITY", f"CTF_GOT_SQLI: Searching for wildling {name}")
-    tracer = trace.get_tracer(__name__)
-    
-    # Check for SQL injection signature
-    if "UNION" in name.upper() and "SELECT" in name.upper():
-        backend.push_metric("CTFFlagFound", 1.0, {"type": "SQLI_GOT"})
-    
-    srv = MSSQL_SERVERS.get("castelblack", {})
-    conn = None
-    try:
-        # Attempt real connection to GOAD
-        conn = pymssql.connect(
-            server=srv.get("host", "192.168.56.22"),
-            user=GOAD_MSSQL_USER, password=GOAD_MSSQL_PASSWORD,
-            database="master", timeout=2,
-        )
-        cursor = conn.cursor()
-        cursor.execute(f"SELECT * FROM wildlings WHERE name = '{name}'")
-        row = cursor.fetchone()
-        return {"status": "success", "data": row if row else "No wildling found."}
-    except Exception as e:
-        # Fallback realistic trace generation if GOAD subnet is unreachable
-        with tracer.start_as_current_span(
-            "SELECT master.wildlings",
-            attributes={
+    got_tracer = trace.get_tracer("goad.wildlings")
+
+    # ── Rich trace: wrap entire GOAD query flow ──
+    with got_tracer.start_as_current_span("goad.wildling_search", attributes={
+        "goad.search_name": name[:256],
+        "goad.target_server": "castelblack",
+    }) as search_span:
+
+        backend.push_log("SECURITY", f"CTF_GOT_SQLI: Searching for wildling {name}")
+
+        # Step 1: Analyze input
+        with got_tracer.start_as_current_span("goad.analyze_input") as analyze_span:
+            is_sqli = "UNION" in name.upper() and "SELECT" in name.upper()
+            has_special = any(c in name for c in ["'", ";", "--", "/*"])
+            analyze_span.set_attribute("goad.sqli_detected", is_sqli)
+            analyze_span.set_attribute("goad.special_chars", has_special)
+            if is_sqli:
+                backend.push_metric("CTFFlagFound", 1.0, {"type": "SQLI_GOT"})
+
+        # Step 2: Attempt real GOAD MSSQL connection
+        srv = MSSQL_SERVERS.get("castelblack", {})
+        conn = None
+        try:
+            with got_tracer.start_as_current_span("db.connect", attributes={
                 "db.system": "mssql",
                 "db.name": "master",
-                "db.statement": f"SELECT * FROM wildlings WHERE name = '{name}'",
+                "net.peer.name": srv.get("host", "192.168.56.22"),
+                "net.peer.port": srv.get("port", 1433),
+            }):
+                conn = pymssql.connect(
+                    server=srv.get("host", "192.168.56.22"),
+                    user=GOAD_MSSQL_USER, password=GOAD_MSSQL_PASSWORD,
+                    database="master", timeout=2,
+                )
+
+            with got_tracer.start_as_current_span("db.execute_query", attributes={
+                "db.system": "mssql",
+                "db.statement": f"SELECT * FROM wildlings WHERE name = '{name}'"[:512],
+            }):
+                cursor = conn.cursor()
+                cursor.execute(f"SELECT * FROM wildlings WHERE name = '{name}'")
+                row = cursor.fetchone()
+
+            search_span.set_attribute("goad.result_source", "live_mssql")
+            return {"status": "success", "data": row if row else "No wildling found."}
+
+        except Exception as e:
+            # Step 3: Fallback simulation
+            with got_tracer.start_as_current_span("db.simulated_query", attributes={
+                "db.system": "mssql",
+                "db.name": "master",
+                "db.statement": f"SELECT * FROM wildlings WHERE name = '{name}'"[:512],
                 "net.peer.name": "castelblack.north.sevenkingdoms.local",
                 "net.peer.port": 1433,
-                "security.attack.owasp": "A03:2021",
-                "security.goad.target_domain": "north.sevenkingdoms.local",
-            }
-        ) as span:
-            if "UNION" in name.upper() and "SELECT" in name.upper():
-                span.set_attribute("security.attack.type", "sqli")
-                span.set_attribute("security.attack.severity", "critical")
-                span.set_attribute("security.attack.mitre_id", "T1190")
-                span.set_attribute("security.attack.payload", name[:200])
-                span.set_attribute("security.flag_captured", True)
-                return {"status": "success", "data": "UNION result simulated! FLAG{7H3_W4LL_H45_B33N_BR34CH3D}"}
-            return {"status": "error", "message": f"Wildling not found (DB Error): {str(e)}"}
-    finally:
-        if conn:
-            try:
-                conn.close()
-            except Exception:
-                pass
+                "db.simulated": True,
+            }) as sim_span:
+                if is_sqli:
+                    sim_span.set_attribute("security.attack.type", "sqli")
+                    sim_span.set_attribute("security.attack.severity", "critical")
+                    sim_span.set_attribute("security.attack.mitre_id", "T1190")
+                    sim_span.set_attribute("security.attack.payload", name[:200])
+                    sim_span.set_attribute("security.attack.detected", True)
+                    search_span.set_attribute("goad.result_source", "simulated")
+                    return {"status": "success", "data": "UNION result simulated! FLAG{7H3_W4LL_H45_B33N_BR34CH3D}"}
+
+                search_span.set_attribute("goad.result_source", "error")
+                return {"status": "error", "message": f"Wildling not found (DB Error): {str(e)}"}
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
 
 # CTF 8: SSRF to Meereen (Dragon Eggs)
 @app.get("/api/v1/got/dragons")
