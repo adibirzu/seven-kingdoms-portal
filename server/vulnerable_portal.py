@@ -159,6 +159,45 @@ SESSIONS: dict[str, dict] = {}  # session_id -> {username, role, created_at, ...
 # Active login attempts for brute force tracking
 LOGIN_ATTEMPTS: dict[str, list[float]] = {}
 
+# Shared file for cross-worker registered user persistence
+# (uvicorn --workers N forks separate processes, each with its own USERS_DB)
+_REGISTERED_USERS_FILE = Path(os.getenv("SKP_USER_STORE", "/tmp/skp_registered_users.json"))
+
+
+def _save_user_to_shared_store(user: dict) -> None:
+    """Persist a registered user to the shared JSON file."""
+    store = _load_shared_user_store()
+    store[user["username"]] = user
+    try:
+        _REGISTERED_USERS_FILE.write_text(json.dumps(store), encoding="utf-8")
+    except Exception as e:
+        logger.debug(f"Failed to write shared user store: {e}")
+
+
+def _load_shared_user_store() -> dict[str, dict]:
+    """Load all registered users from the shared JSON file."""
+    try:
+        if _REGISTERED_USERS_FILE.exists():
+            return json.loads(_REGISTERED_USERS_FILE.read_text(encoding="utf-8"))
+    except Exception as e:
+        logger.debug(f"Failed to read shared user store: {e}")
+    return {}
+
+
+def _lookup_user(username: str) -> dict | None:
+    """Find a user in in-memory DB first, then fall back to shared file store."""
+    user = USERS_DB.get(username)
+    if user:
+        return user
+    # Cross-worker lookup
+    shared = _load_shared_user_store()
+    user = shared.get(username)
+    if user:
+        # Cache in this worker's memory for subsequent requests
+        USERS_DB[username] = user
+    return user
+
+
 # ── Helper Functions ───────────────────────────────────────────────
 
 def _get_client_info(request: Request) -> tuple[str, str]:
@@ -205,13 +244,13 @@ def _get_current_user(request: Request) -> dict | None:
         claims = _verify_jwt(token)
         if claims:
             username = claims.get("sub", "")
-            return USERS_DB.get(username)
+            return _lookup_user(username)
 
     # Check session cookie
     session_id = request.cookies.get("portal_session")
     if session_id and session_id in SESSIONS:
         session = SESSIONS[session_id]
-        return USERS_DB.get(session.get("username"))
+        return _lookup_user(session.get("username"))
 
     return None
 
@@ -444,8 +483,10 @@ async def login(request: Request):
         }) as local_span:
 
             with tracer.start_as_current_span("auth.lookup_user") as lookup_span:
-                user = USERS_DB.get(username)
+                user = _lookup_user(username)
                 lookup_span.set_attribute("auth.user_found", user is not None)
+                lookup_span.set_attribute("auth.lookup_source",
+                                          "shared_file" if user and username not in USERS_DB else "memory")
 
             if not user:
                 # VULN A07: Username enumeration
@@ -527,12 +568,14 @@ async def register(request: Request):
     if not username or not password:
         return JSONResponse({"status": "error", "message": "Username and password required"}, status_code=400)
 
-    if username in USERS_DB:
+    # Check both in-memory and shared store for duplicates
+    if _lookup_user(username):
         return JSONResponse({"status": "error", "message": "Username already exists"}, status_code=409)
 
     # VULN A04: Mass Assignment - all body fields accepted, including 'role'
+    all_ids = [u["id"] for u in USERS_DB.values()] + [u["id"] for u in _load_shared_user_store().values()]
     new_user = {
-        "id": max(u["id"] for u in USERS_DB.values()) + 1,
+        "id": max(all_ids) + 1 if all_ids else 1,
         "username": username,
         "password_hash": hashlib.md5(password.encode()).hexdigest(),
         "email": body.get("email", f"{username}@portal.local"),
@@ -549,7 +592,26 @@ async def register(request: Request):
             pass
 
     USERS_DB[username] = new_user
-    return JSONResponse({"status": "success", "user": {k: v for k, v in new_user.items() if k != "password_hash"}})
+    _save_user_to_shared_store(new_user)
+
+    # Auto-login: issue JWT + session cookie so the user is immediately authenticated
+    session_id = secrets.token_hex(16)
+    SESSIONS[session_id] = {
+        "username": username,
+        "role": new_user["role"],
+        "realm": new_user.get("realm", ""),
+        "auth_method": "register",
+        "created_at": time.time(),
+    }
+    token = _create_jwt(username, new_user["role"], new_user.get("realm", ""))
+
+    resp = JSONResponse({
+        "status": "success",
+        "token": token,
+        "user": {k: v for k, v in new_user.items() if k != "password_hash"},
+    })
+    resp.set_cookie("portal_session", session_id, httponly=False, samesite="none")
+    return resp
 
 
 @router.get("/api/auth/session-fixation")
@@ -1028,7 +1090,7 @@ async def ldap_lookup(request: Request, username: str = "", domain: str = "seven
         with tracer.start_as_current_span("ldap.normal_search", attributes={
             "ldap.search_term": username,
         }) as search_span:
-            user = USERS_DB.get(username)
+            user = _lookup_user(username)
             search_span.set_attribute("ldap.user_found", user is not None)
             if user:
                 ldap_span.set_attribute("ldap.result", "found")

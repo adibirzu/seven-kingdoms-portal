@@ -869,13 +869,13 @@ and hidden information that can be used for exploitation.</pre>
         return resp.text().then(function(text) {
           handleResponse(method, url, resp.status, resp.headers, text, elapsed);
 
-          // Auto-store JWT from login response
-          if (url.indexOf("/auth/login") !== -1 && resp.status === 200) {
+          // Auto-store JWT from login or register response
+          if ((url.indexOf("/auth/login") !== -1 || url.indexOf("/auth/register") !== -1) && resp.status === 200) {
             try {
               var data = JSON.parse(text);
               if (data.token) {
                 sessionToken = data.token;
-                document.getElementById("session-indicator").textContent = "Authenticated";
+                document.getElementById("session-indicator").textContent = "Authenticated (" + (data.user ? data.user.username : "user") + ")";
                 document.getElementById("session-indicator").classList.add("authenticated");
               }
             } catch(e) {}
