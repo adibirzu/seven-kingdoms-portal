@@ -101,6 +101,9 @@ class Config:
     oci_log_ocid: str = ""
     oci_monitoring_namespace: str = "CustomAttackMetrics"
 
+    # OKE (populated after C1/stack deploy)
+    oke_cluster_ocid: str = ""
+
     # App deployment outputs (populated after C4 deploy)
     app_url: str = ""
     app_lb_ocid: str = ""
@@ -176,6 +179,9 @@ class Config:
             goad_vcn_ocid=_get("GOAD_VCN_OCID"),
             goad_lpg_ocid=_get("GOAD_LPG_OCID"),
             app_lpg_ocid=_get("APP_LPG_OCID"),
+
+            # OKE
+            oke_cluster_ocid=_get("OKE_CLUSTER_OCID"),
 
             # Observability
             oci_apm_domain_id=_get("OCI_APM_DOMAIN_ID"),

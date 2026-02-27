@@ -32,7 +32,7 @@ variable "availability_domain" {
 }
 
 variable "ssh_authorized_keys" {
-  description = "SSH public key for Linux instances"
+  description = "SSH public key(s) for Linux instances"
   type        = string
 }
 

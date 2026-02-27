@@ -49,7 +49,8 @@ echo "  Pushed: $FULL_IMAGE"
 
 # --- Step 3: Configure kubeconfig ---
 echo "  Configuring kubeconfig..."
-OKE_CLUSTER_ID="${OKE_CLUSTER_ID:-}"
+# Resolve OKE cluster OCID from multiple env var names
+OKE_CLUSTER_ID="${OKE_CLUSTER_ID:-${OKE_CLUSTER_OCID:-}}"
 if [[ -z "$OKE_CLUSTER_ID" ]]; then
     # Try to discover from Terraform
     TF_DIR="$ROOT_DIR/deploy/terraform/environments/dev"
@@ -59,13 +60,22 @@ if [[ -z "$OKE_CLUSTER_ID" ]]; then
 fi
 
 if [[ -n "$OKE_CLUSTER_ID" ]]; then
-    oci ce cluster create-kubeconfig \
-        --profile "$OCI_PROFILE" \
-        --cluster-id "$OKE_CLUSTER_ID" \
-        --file "$HOME/.kube/config" \
-        --region "$OCI_REGION" \
-        --token-version 2.0.0 \
+    # Build kubeconfig command based on auth mode
+    OCI_AUTH="${OCI_AUTH_MODE:-api_key}"
+    KUBECONFIG_ARGS=(
+        --cluster-id "$OKE_CLUSTER_ID"
+        --file "$HOME/.kube/config"
+        --region "$OCI_REGION"
+        --token-version 2.0.0
         --kube-endpoint PUBLIC_ENDPOINT
+    )
+
+    if [[ "$OCI_AUTH" == "instance_principal" ]]; then
+        # Instance principal: use OCI CLI auth flag
+        OCI_CLI_AUTH=instance_principal oci ce cluster create-kubeconfig "${KUBECONFIG_ARGS[@]}"
+    else
+        oci ce cluster create-kubeconfig --profile "$OCI_PROFILE" "${KUBECONFIG_ARGS[@]}"
+    fi
 fi
 
 # --- Step 4: Apply Kubernetes manifests ---
