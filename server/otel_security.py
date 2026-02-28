@@ -13,12 +13,17 @@ search can catch *any* newly added vulnerability type.
 from __future__ import annotations
 
 import functools
+import os
 import time
 from typing import Any
 
 from opentelemetry import trace
 
 tracer = trace.get_tracer("security.vulnerability")
+
+# Runtime context — injected into every security span for APM filtering
+_RUNTIME = os.getenv("APP_RUNTIME", "unknown").strip().lower()
+_SERVICE = os.getenv("APP_SERVICE_NAME", f"seven-kingdoms-portal-{_RUNTIME}")
 
 
 # ── MITRE ATT&CK mapping for each vulnerability class ──────────────
@@ -151,6 +156,8 @@ def security_span(
         "security.attack.mitre_name": mitre["name"],
         "security.attack.owasp": owasp,
         "security.attack.timestamp": time.time(),
+        "app.runtime": _RUNTIME,
+        "app.service": _SERVICE,
     }
 
     if payload:
@@ -199,6 +206,8 @@ def detection_event(
             "security.attack.payload": payload[:512],
             "security.source_ip": source_ip,
             "security.username": username,
+            "app.runtime": _RUNTIME,
+            "app.service": _SERVICE,
         },
     ):
         pass

@@ -207,26 +207,38 @@ backend = Backend()
 app = FastAPI(title="OCI Observability Overview")
 app.add_middleware(GZipMiddleware, minimum_size=500)
 
-# Setup OpenTelemetry APM Tracing
-resource = Resource(attributes={"service.name": "SevenKingdomsApp"})
+# Setup OpenTelemetry APM Tracing — runtime-aware service naming (KB-298)
+_app_runtime = os.getenv("APP_RUNTIME", "unknown").strip().lower()
+_service_name = os.getenv("APP_SERVICE_NAME", f"seven-kingdoms-portal-{_app_runtime}")
+_instance_id = os.getenv("HOSTNAME", os.getenv("INSTANCE_NAME", "unknown"))
+
+resource = Resource(attributes={
+    "service.name": _service_name,
+    "service.namespace": "oci-demo",
+    "service.version": "4.0.0",
+    "deployment.environment": os.getenv("ENVIRONMENT", "production"),
+    "deployment.runtime": _app_runtime,
+    "host.name": _instance_id,
+})
 trace.set_tracer_provider(TracerProvider(resource=resource))
 tracer_provider = trace.get_tracer_provider()
 
 apm_endpoint = os.getenv("OCI_APM_ENDPOINT")
 apm_private_key = os.getenv("OCI_APM_PRIVATE_DATAKEY")
+_apm_active = False
 
 if apm_endpoint and apm_private_key:
-    # Build complete OTLP endpoint: typically {OCI_APM_ENDPOINT}/20200101/observations/public-span?dataFormat=otlp&dataFormatVersion=1.0&dataKey={PRIVATE_DATAKEY}
-    # Handling typical bare APM endpoint formats in environment config
-    otlp_endpoint = apm_endpoint.rstrip("/") + "/20200101/observations/public-span?dataFormat=otlp&dataFormatVersion=1.0&dataKey=" + apm_private_key
-    
-    otlp_exporter = OTLPSpanExporter(endpoint=otlp_endpoint)
+    # OCI APM OTLP endpoint — use /opentelemetry/private/ path with dataKey auth header
+    base_endpoint = apm_endpoint.rstrip("/").split("/20200101")[0]
+    traces_endpoint = f"{base_endpoint}/20200101/opentelemetry/private/v1/traces"
+    headers = {"Authorization": f"dataKey {apm_private_key}"}
+    otlp_exporter = OTLPSpanExporter(endpoint=traces_endpoint, headers=headers)
     tracer_provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
-    backend.push_log("SYSTEM", "OpenTelemetry initialized and routed to OCI APM via OTLP")
+    _apm_active = True
+    backend.push_log("SYSTEM", f"OpenTelemetry → OCI APM (service={_service_name}, runtime={_app_runtime})")
 else:
-    # Fallback to console export if APM is not fully configured
     tracer_provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
-    backend.push_log("SYSTEM", "OpenTelemetry running with Console Export (APM config missing)")
+    backend.push_log("SYSTEM", "OpenTelemetry → Console (APM config missing)")
 
 app.include_router(portal_router)
 app.include_router(enhanced_router)
@@ -237,25 +249,33 @@ PyMSSQLInstrumentor().instrument()
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):
     start_time = time.time()
-    
-    # Phase 4 Trace Enrichment: Add random user dimension for rich Log Analytics
+
+    # Trace enrichment: user dimension + runtime context for Log Analytics
     current_span = trace.get_current_span()
-    got_users = ["jon.snow", "arya.stark", "tyrion.lannister", "daenerys.targaryen"]
+    got_users = ["jon.snow", "arya.stark", "tyrion.lannister", "daenerys.targaryen",
+                 "sansa.stark", "cersei.lannister", "jaime.lannister", "bran.stark"]
     if current_span and current_span.is_recording():
         current_span.set_attribute("user.id", got_users[int(time.time()) % len(got_users)])
         current_span.set_attribute("client.ip", request.client.host)
-        
+        current_span.set_attribute("app.runtime", _app_runtime)
+        current_span.set_attribute("app.service", _service_name)
+        current_span.set_attribute("http.user_agent", request.headers.get("user-agent", "")[:256])
+
     response = await call_next(request)
     process_time = time.time() - start_time
     response.headers["X-Process-Time"] = str(process_time)
-    
+
+    if current_span and current_span.is_recording():
+        current_span.set_attribute("http.response.status_code", response.status_code)
+        current_span.set_attribute("http.response.time_ms", round(process_time * 1000, 2))
+
     # Custom metrics
     backend.push_metric("HttpRequest", 1.0, {
         "method": request.method,
         "path": request.url.path,
         "status_code": str(response.status_code)
     })
-    
+
     return response
 
 @app.get("/health")
@@ -265,6 +285,9 @@ def health() -> dict:
         "timestamp": time.time(),
         "version": "4.0.0-CALDERA-ENHANCED",
         "environment": os.getenv("ENVIRONMENT", "development"),
+        "runtime": _app_runtime,
+        "service_name": _service_name,
+        "apm": _apm_active,
         "static_dir": str(STATIC_DIR),
         "html_exists": (STATIC_DIR / "observability.html").exists()
     }
