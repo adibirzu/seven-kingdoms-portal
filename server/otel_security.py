@@ -45,6 +45,23 @@ MITRE_MAP: dict[str, dict[str, str]] = {
     "open_redirect":    {"id": "T1566.002", "tactic": "initial-access", "name": "Phishing: Spearphishing Link"},
     "exfiltration":     {"id": "T1041", "tactic": "exfiltration", "name": "Exfiltration Over C2 Channel"},
     "persistence":      {"id": "T1543", "tactic": "persistence", "name": "Create or Modify System Process"},
+    # Enhanced marketplace (Juice Shop-inspired)
+    "forged_identity":         {"id": "T1078", "tactic": "defense-evasion", "name": "Valid Accounts"},
+    "stored_xss":              {"id": "T1059.007", "tactic": "execution", "name": "JavaScript Execution"},
+    "coupon_forge":            {"id": "T1565", "tactic": "impact", "name": "Data Manipulation"},
+    "expired_coupon":          {"id": "T1565", "tactic": "impact", "name": "Data Manipulation"},
+    "negative_transfer":       {"id": "T1565.002", "tactic": "impact", "name": "Transmitted Data Manipulation"},
+    "negative_quantity":       {"id": "T1565.002", "tactic": "impact", "name": "Transmitted Data Manipulation"},
+    "price_tampering":         {"id": "T1565.002", "tactic": "impact", "name": "Transmitted Data Manipulation"},
+    "captcha_bypass":          {"id": "T1185", "tactic": "collection", "name": "Browser Session Hijacking"},
+    "score_board_discovery":   {"id": "T1083", "tactic": "discovery", "name": "File and Directory Discovery"},
+    "hidden_endpoint":         {"id": "T1083", "tactic": "discovery", "name": "File and Directory Discovery"},
+    "admin_panel_access":      {"id": "T1078", "tactic": "defense-evasion", "name": "Valid Accounts"},
+    "admin_panel":             {"id": "T1078", "tactic": "defense-evasion", "name": "Valid Accounts"},
+    "security_question_bypass": {"id": "T1110.001", "tactic": "credential-access", "name": "Password Guessing"},
+    "password_reset_osint":    {"id": "T1110.001", "tactic": "credential-access", "name": "Password Guessing"},
+    "privilege_escalation":    {"id": "T1068", "tactic": "privilege-escalation", "name": "Exploitation for Privilege Escalation"},
+    "prototype_pollution":     {"id": "T1059", "tactic": "execution", "name": "Command and Scripting Interpreter"},
 }
 
 # OWASP Top 10 (2021) mapping
@@ -71,6 +88,23 @@ OWASP_MAP: dict[str, str] = {
     "open_redirect": "A01:2021-Broken Access Control",
     "exfiltration": "A01:2021-Broken Access Control",
     "persistence": "A05:2021-Security Misconfiguration",
+    # Enhanced marketplace (Juice Shop-inspired)
+    "forged_identity": "A01:2021-Broken Access Control",
+    "stored_xss": "A03:2021-Injection",
+    "coupon_forge": "A02:2021-Cryptographic Failures",
+    "expired_coupon": "A04:2021-Insecure Design",
+    "negative_transfer": "A04:2021-Insecure Design",
+    "negative_quantity": "A04:2021-Insecure Design",
+    "price_tampering": "A04:2021-Insecure Design",
+    "captcha_bypass": "A07:2021-Auth Failures",
+    "score_board_discovery": "A05:2021-Security Misconfiguration",
+    "hidden_endpoint": "A05:2021-Security Misconfiguration",
+    "admin_panel_access": "A01:2021-Broken Access Control",
+    "admin_panel": "A01:2021-Broken Access Control",
+    "security_question_bypass": "A07:2021-Auth Failures",
+    "password_reset_osint": "A07:2021-Auth Failures",
+    "privilege_escalation": "A01:2021-Broken Access Control",
+    "prototype_pollution": "A03:2021-Injection",
 }
 
 

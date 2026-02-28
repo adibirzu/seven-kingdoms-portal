@@ -4,6 +4,12 @@ A deliberately vulnerable web application themed around Game of Thrones, designe
 
 > **Warning**: This application contains intentional security vulnerabilities. Deploy only in isolated lab environments.
 
+## Deploy to Oracle Cloud
+
+[![Deploy to Oracle Cloud](https://oci-resourcemanager-plugin.plugins.oci.oraclecloud.com/latest/deploy-to-oracle-cloud.svg)](https://cloud.oracle.com/resourcemanager/stacks/create?zipUrl=https://github.com/adibirzu/seven-kingdoms-portal/archive/refs/heads/main.zip)
+
+> Set **Working Directory** to `stack/` when creating the stack. This deploys the complete platform: VCN, OKE cluster, GOAD Active Directory lab (optional), observability, WAF, and the vulnerable app — all automatically orchestrated.
+
 ## Screenshots
 
 ### Dashboard
@@ -60,9 +66,9 @@ Expand any guide for the full attack flow — from understanding the target to d
 
 Seven Kingdoms Portal is a "GOAD-style" (Game of Active Directory) web application that provides:
 
-- **30 intentional vulnerabilities** across OWASP Top 10 categories (SQLi, XSS, SSRF, IDOR, RCE, SSTI, etc.)
-- **22 attack entries** in the Attack Encyclopedia with educational walkthroughs
-- **20 detection rules** with pre-built APM + Log Analytics queries
+- **48 intentional vulnerabilities** across OWASP Top 10 categories (SQLi, XSS, SSRF, IDOR, RCE, SSTI, XXE, CSRF, price tampering, coupon forgery, prototype pollution, etc.)
+- **32 attack entries** in the Attack Encyclopedia with educational walkthroughs
+- **30 detection rules** with pre-built APM + Log Analytics queries
 - **Full OpenTelemetry instrumentation** — every attack generates traces with security-specific span attributes
 - **OCI Observability integration** — APM, Log Analytics, Monitoring, custom metrics
 - **Interactive attack runner** — trigger vulnerabilities from the UI and see them detected in real-time

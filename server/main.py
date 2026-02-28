@@ -42,6 +42,7 @@ from lxml import etree
 
 from .vulnerable_portal import router as portal_router
 from .vulnerable_portal import MSSQL_SERVERS, GOAD_MSSQL_USER, GOAD_MSSQL_PASSWORD
+from .shop_enhanced import router as enhanced_router
 
 # Load environment variables from .env.local
 load_dotenv(".env.local")
@@ -228,6 +229,7 @@ else:
     backend.push_log("SYSTEM", "OpenTelemetry running with Console Export (APM config missing)")
 
 app.include_router(portal_router)
+app.include_router(enhanced_router)
 
 FastAPIInstrumentor.instrument_app(app)
 PyMSSQLInstrumentor().instrument()

