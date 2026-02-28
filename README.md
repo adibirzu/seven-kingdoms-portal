@@ -53,6 +53,20 @@ Click any challenge to fire the attack — the response panel shows HTTP status,
 
 ![Challenge Response](docs/screenshots/ctf-03-response.png)
 
+### Enhanced Marketplace (Shop)
+60 products across 9 categories (Weapons, Horses, Ships, Citadels, Potions, Scrolls, Mercenaries, GOAD Loot) with Midjourney-generated product images, star ratings, house affiliations, and 15+ exploitable endpoints.
+
+![Shop Overview](docs/screenshots/shop-01-overview.png)
+
+Click any product to open the detail modal — purchase system, reviews with stored XSS hints, and seller metadata:
+
+![Product Detail](docs/screenshots/shop-07-disclaimer.png)
+
+### Pentest Guide
+OWASP Top 10:2025 coverage, shop exploitation walkthroughs, full attack surface map, methodology guide, vulnerability hints, and curl/CLI examples:
+
+![Pentest Guide](docs/screenshots/shop-08-pentest-guide.png)
+
 ### CTF Walkthrough Guides
 Step-by-step exploitation guides with curl commands, expected output, and OCI APM detection queries:
 
@@ -280,6 +294,7 @@ All 20 rules map to MITRE ATT&CK techniques and OWASP Top 10 categories:
 npm install
 node docs/take-screenshots.mjs      # Portal screenshots
 node docs/take-ctf-screenshots.mjs   # CTF platform screenshots
+node docs/take-shop-screenshots.mjs  # Shop & Pentest Guide screenshots
 ```
 
 ## Legal Disclaimer
