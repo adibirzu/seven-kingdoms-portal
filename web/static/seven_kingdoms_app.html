@@ -127,6 +127,7 @@
             <option value="name">Sort by Name</option>
             <option value="price-asc">Price: Low to High</option>
             <option value="price-desc">Price: High to Low</option>
+            <option value="rating">Top Rated</option>
             <option value="house">Sort by House</option>
           </select>
         </div>
@@ -1601,31 +1602,69 @@ and hidden information that can be used for exploitation.</pre>
       .catch(function(e) { console.error("Shop load error:", e); });
   }
 
+  function shopRenderStars(rating) {
+    var r = rating || 0;
+    var html = "";
+    for (var i = 1; i <= 5; i++) {
+      html += '<span class="' + (i <= Math.round(r) ? 'star-filled' : 'star-empty') + '">\u2605</span>';
+    }
+    return html;
+  }
+
   function shopSortAndRender() {
     var sort = document.getElementById("shop-sort").value;
     var items = shopItems.slice();
     if (sort === "price-asc") items.sort(function(a, b) { return a.price - b.price; });
     else if (sort === "price-desc") items.sort(function(a, b) { return b.price - a.price; });
     else if (sort === "house") items.sort(function(a, b) { return (a.house || "").localeCompare(b.house || ""); });
+    else if (sort === "rating") items.sort(function(a, b) { return (b.rating || 0) - (a.rating || 0); });
     else items.sort(function(a, b) { return a.name.localeCompare(b.name); });
 
     document.getElementById("shop-result-count").textContent = items.length + " items";
     var grid = document.getElementById("shop-grid");
     if (items.length === 0) {
-      grid.innerHTML = '<p class="text-muted" style="grid-column:1/-1;text-align:center;padding:40px;">No items found. Try a different search or category.</p>';
+      grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:60px 20px;">' +
+        '<div style="font-size:3rem;margin-bottom:12px;opacity:0.3;">\uD83D\uDD0D</div>' +
+        '<p style="color:var(--text-muted);font-size:0.9rem;">No items found. Try a different search or category.</p>' +
+      '</div>';
       return;
     }
 
     var html = "";
-    items.forEach(function(item) {
+    items.forEach(function(item, idx) {
       var icon = shopGetIcon(item.category);
       var stockClass = item.stock <= 3 ? " low" : "";
       var stockText = item.stock === 0 ? "Out of stock" : item.stock + " in stock";
-      html += '<div class="shop-product-card" onclick="shopViewProduct(' + item.id + ')">' +
-        '<div class="shop-product-img">' + icon + '</div>' +
+      var imgSrc = item.image ? "/static/shop/" + item.image : "";
+      var rating = item.rating || 0;
+
+      // Stock badge
+      var stockBadge = "";
+      if (item.stock === 0) stockBadge = '<span class="shop-stock-badge out">Sold Out</span>';
+      else if (item.stock <= 3) stockBadge = '<span class="shop-stock-badge low">' + item.stock + ' left</span>';
+
+      // Rating badge
+      var ratingBadge = rating > 0 ? '<span class="shop-product-rating-badge">\u2605 ' + rating.toFixed(1) + '</span>' : '';
+
+      // Image or fallback
+      var imgHtml;
+      if (imgSrc) {
+        imgHtml = '<img class="shop-img-actual" src="' + imgSrc + '" alt="' + escapeHtml(item.name) + '" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'block\';" loading="lazy">' +
+          '<span class="shop-img-fallback" style="display:none;">' + icon + '</span>';
+      } else {
+        imgHtml = '<span class="shop-img-fallback">' + icon + '</span>';
+      }
+
+      // Card with staggered animation
+      html += '<div class="shop-product-card" style="animation-delay:' + (idx * 0.03) + 's" onclick="shopViewProduct(' + item.id + ')">' +
+        '<div class="shop-product-img" data-cat="' + (item.category || '') + '">' +
+          ratingBadge + stockBadge + imgHtml +
+          '<button class="shop-quick-add" onclick="event.stopPropagation();shopQuickAdd(' + item.id + ',\'' + escapeHtml(item.name).replace(/'/g, "\\'") + '\',' + item.price + ',\'' + (item.category || '') + '\')">+ Add to Cart</button>' +
+        '</div>' +
         '<div class="shop-product-body">' +
           '<div class="shop-product-house">' + escapeHtml(item.house || "") + '</div>' +
           '<div class="shop-product-name">' + escapeHtml(item.name) + '</div>' +
+          '<div class="shop-product-stars">' + shopRenderStars(rating) + '<span class="star-count">' + rating.toFixed(1) + '</span></div>' +
           '<div class="shop-product-desc">' + escapeHtml((item.description || "").replace(/FLAG\{[^}]+\}/g, "***")) + '</div>' +
           '<div class="shop-product-footer">' +
             '<div class="shop-product-price">' + item.price.toLocaleString() + ' <small>gold</small></div>' +
@@ -1636,6 +1675,28 @@ and hidden information that can be used for exploitation.</pre>
     });
     grid.innerHTML = html;
   }
+
+  // Quick-add from card (1 item)
+  window.shopQuickAdd = function(itemId, name, price, category) {
+    var existing = null;
+    for (var i = 0; i < shopCart.length; i++) {
+      if (shopCart[i].item_id === itemId) { existing = shopCart[i]; break; }
+    }
+    if (existing) { existing.quantity += 1; }
+    else { shopCart.push({item_id: itemId, name: name, price: price, quantity: 1, icon: shopGetIcon(category)}); }
+    fetch("/portal/api/shop/cart/add", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({username: shopCurrentUser, item_id: itemId, quantity: 1})
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      if (data.flag || (JSON.stringify(data).indexOf("FLAG{") !== -1)) shopShowResponse(data);
+    });
+    shopUpdateCartUI();
+    // Bounce animation on badge
+    var badge = document.getElementById("shop-cart-badge");
+    badge.classList.remove("bounce");
+    void badge.offsetWidth; // force reflow
+    badge.classList.add("bounce");
+  };
 
   // ── Category Navigation ───────────────────────
   document.querySelectorAll(".shop-cat-link").forEach(function(link) {
@@ -1666,6 +1727,14 @@ and hidden information that can be used for exploitation.</pre>
         var item = data.item || data;
         if (!item || !item.name) return;
         var icon = shopGetIcon(item.category);
+        var rating = item.rating || 0;
+        var imgSrc = item.image ? "/static/shop/" + item.image : "";
+
+        // Build image/icon for detail
+        var detailImg = icon;
+        if (imgSrc) {
+          detailImg = '<img src="' + imgSrc + '" alt="' + escapeHtml(item.name) + '" onerror="this.outerHTML=\'' + icon + '\'" style="width:100%;height:100%;object-fit:cover;border-radius:14px;">';
+        }
 
         // Load reviews
         fetch("/portal/api/shop/reviews/" + itemId)
@@ -1674,20 +1743,19 @@ and hidden information that can be used for exploitation.</pre>
             var reviews = revData.reviews || [];
             var reviewsHtml = "";
             reviews.forEach(function(r) {
-              var stars = "";
-              for (var i = 0; i < 5; i++) stars += i < r.rating ? "\u2605" : "\u2606";
               reviewsHtml += '<div class="shop-review">' +
                 '<div class="shop-review-header"><span class="shop-review-author">' + escapeHtml(r.author) + '</span><span class="shop-review-date">' + (r.timestamp || "").split("T")[0] + '</span></div>' +
-                '<div class="shop-review-stars">' + stars + '</div>' +
+                '<div class="shop-review-stars">' + shopRenderStars(r.rating) + '</div>' +
                 '<div class="shop-review-text">' + escapeHtml(r.comment) + '</div>' +
               '</div>';
             });
 
             var html = '<div class="shop-detail-top">' +
-              '<div class="shop-detail-icon">' + icon + '</div>' +
+              '<div class="shop-detail-icon" data-cat="' + (item.category || '') + '">' + detailImg + '</div>' +
               '<div class="shop-detail-info">' +
                 '<h2>' + escapeHtml(item.name) + '</h2>' +
-                '<div class="shop-detail-house">' + escapeHtml(item.house || "") + ' &bull; ' + escapeHtml(item.category || "") + '</div>' +
+                '<div class="shop-detail-house">' + escapeHtml(item.house || "") + ' \u2022 ' + escapeHtml(item.category || "") + '</div>' +
+                '<div class="shop-detail-rating">' + shopRenderStars(rating) + '<span>' + rating.toFixed(1) + '</span></div>' +
                 '<div class="shop-detail-price">' + item.price.toLocaleString() + ' <small style="font-size:0.7rem;color:var(--text-muted);">gold dragons</small></div>' +
               '</div>' +
             '</div>' +
