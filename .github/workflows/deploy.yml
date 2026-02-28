@@ -9,24 +9,35 @@ jobs:
   deploy:
     name: Deploy Application
     runs-on: ubuntu-latest
-    environment: SSH_PRIVATE_KEY
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      - name: Validate Secrets
+        run: |
+          missing=""
+          [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ] && missing="${missing} SSH_PRIVATE_KEY"
+          [ -z "${{ secrets.BASTION_IP }}" ] && missing="${missing} BASTION_IP"
+          [ -z "${{ secrets.INSTANCE_IP }}" ] && missing="${missing} INSTANCE_IP"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing required secrets:${missing}"
+            echo "Go to Settings > Secrets and variables > Actions to configure them."
+            exit 1
+          fi
 
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/new_id_rsa
           chmod 600 ~/.ssh/new_id_rsa
-          ssh-keyscan -H ${{ secrets.BASTION_IP }} >> ~/.ssh/known_hosts
+          ssh-keyscan -H ${{ secrets.BASTION_IP }} >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Run Deployment Script
         env:
           SSH_KEY: /home/runner/.ssh/new_id_rsa
           INSTANCE_IP: ${{ secrets.INSTANCE_IP }}
           BASTION_IP: ${{ secrets.BASTION_IP }}
-          INSTANCE_ID: ${{ secrets.INSTANCE_ID }}
+          C6_SKIP_CLOUD_INIT_WAIT: "true"
         run: |
           chmod +x deploy/scripts/update-app-code.sh
           ./deploy/scripts/update-app-code.sh
