@@ -282,11 +282,22 @@ node docs/take-screenshots.mjs      # Portal screenshots
 node docs/take-ctf-screenshots.mjs   # CTF platform screenshots
 ```
 
+## Legal Disclaimer
+
+> **This is a personal educational project.** It has **no affiliation with Oracle Corporation, HBO, George R.R. Martin, or Penguin Random House**.
+
+- **"A Song of Ice and Fire"** is a novel series by George R.R. Martin, published by Bantam Books (Penguin Random House). All book content is copyright of the author.
+- **"Game of Thrones"** is a registered trademark of Home Box Office, Inc. (HBO). All character names, locations, house sigils, and lore referenced in this project are the intellectual property of their respective owners.
+- This project uses thematic elements under **fair use** for **non-commercial, educational purposes only** — specifically cybersecurity training and observability demonstrations.
+- The Game of Thrones / medieval fantasy theming follows the convention established by [GOAD (Game of Active Directory)](https://github.com/Orange-Cyberdefense/GOAD), the open-source Active Directory lab by Orange Cyberdefense that this project integrates with.
+- Any reference to Oracle Cloud Infrastructure (OCI) relates solely to the cloud environment used for lab deployment and does not imply endorsement or affiliation.
+
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE)
 
 ## Acknowledgments
 
-- Inspired by [GOAD](https://github.com/Orange-Cyberdefense/GOAD) (Game of Active Directory)
+- Inspired by [GOAD](https://github.com/Orange-Cyberdefense/GOAD) (Game of Active Directory) by Orange Cyberdefense
 - Built for [OCI](https://www.oracle.com/cloud/) Observability & Security demonstrations
+- GoT thematic elements are used for educational purposes consistent with GOAD's naming conventions
