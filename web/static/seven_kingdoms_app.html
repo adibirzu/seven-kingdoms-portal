@@ -25,7 +25,8 @@
     <span class="brand-name">Seven Kingdoms</span>
   </a>
   <div class="nav-links">
-    <a href="#" data-tab="lab" class="active">Practice Lab</a>
+    <a href="#" data-tab="shop" class="active">Shop</a>
+    <a href="#" data-tab="lab">Practice Lab</a>
     <a href="#" data-tab="guide">Pentest Guide</a>
     <a href="#" data-tab="traces">APM Traces</a>
   </div>
@@ -36,9 +37,310 @@
 </nav>
 
 <!-- ══════════════════════════════════════════════ -->
+<!-- Shop Tab                                         -->
+<!-- ══════════════════════════════════════════════ -->
+<div id="tab-shop" class="tab-panel active">
+  <div class="shop-page">
+    <!-- Shop Top Bar -->
+    <div class="shop-topbar">
+      <div class="shop-topbar-left">
+        <span class="shop-logo">&#9876; Seven Kingdoms Marketplace</span>
+        <span class="shop-tagline">Trade weapons, warhorses, ships &amp; more across Westeros</span>
+      </div>
+      <div class="shop-topbar-right">
+        <div class="shop-search-box">
+          <input type="text" id="shop-search" placeholder="Search items..." autocomplete="off">
+          <button onclick="shopDoSearch()" class="shop-search-btn">&#128269;</button>
+        </div>
+        <div class="shop-user-area">
+          <button class="shop-icon-btn" onclick="shopShowWallet()" title="Gold Wallet">&#128176; <span id="shop-wallet-bal">--</span></button>
+          <button class="shop-icon-btn shop-cart-btn" onclick="shopToggleCart()" title="Shopping Cart">&#128722; <span id="shop-cart-badge" class="shop-badge" style="display:none;">0</span></button>
+          <button class="shop-icon-btn" onclick="shopShowOrders()" title="Order History">&#128230;</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Shop Layout: Sidebar + Grid -->
+    <div class="shop-layout">
+      <!-- Category Sidebar -->
+      <aside class="shop-sidebar">
+        <div class="shop-sidebar-section">
+          <h4 class="shop-sidebar-title">Categories</h4>
+          <nav class="shop-cat-nav">
+            <a href="#" class="shop-cat-link active" data-cat="">All Items</a>
+            <a href="#" class="shop-cat-link" data-cat="weapons">&#9876; Weapons</a>
+            <a href="#" class="shop-cat-link" data-cat="horses">&#127943; Horses</a>
+            <a href="#" class="shop-cat-link" data-cat="ships">&#9973; Ships</a>
+            <a href="#" class="shop-cat-link" data-cat="citadels">&#127984; Citadels</a>
+            <a href="#" class="shop-cat-link" data-cat="potions">&#129514; Potions &amp; Poisons</a>
+            <a href="#" class="shop-cat-link" data-cat="scrolls">&#128220; Scrolls &amp; Intel</a>
+            <a href="#" class="shop-cat-link" data-cat="services">&#128481; Mercenaries</a>
+            <a href="#" class="shop-cat-link" data-cat="goad_loot">&#128128; GOAD Loot</a>
+          </nav>
+        </div>
+        <div class="shop-sidebar-section">
+          <h4 class="shop-sidebar-title">Filter by House</h4>
+          <select id="shop-house-filter" class="shop-select" onchange="shopApplyFilters()">
+            <option value="">All Houses</option>
+            <option value="Stark">House Stark</option>
+            <option value="Lannister">House Lannister</option>
+            <option value="Targaryen">House Targaryen</option>
+            <option value="Baratheon">House Baratheon</option>
+            <option value="Greyjoy">House Greyjoy</option>
+            <option value="Martell">House Martell</option>
+            <option value="Braavos">Braavos</option>
+            <option value="Essos">Essos</option>
+            <option value="Night's Watch">Night's Watch</option>
+            <option value="Citadel">Citadel</option>
+            <option value="Seven Kingdoms">Seven Kingdoms</option>
+            <option value="North">The North</option>
+          </select>
+        </div>
+        <div class="shop-sidebar-section">
+          <h4 class="shop-sidebar-title">&#127991; Coupon Code</h4>
+          <div class="shop-coupon-row">
+            <input type="text" id="shop-coupon-input" placeholder="e.g. DRAGON10" class="shop-input-sm">
+            <button onclick="shopApplyCoupon()" class="shop-btn-sm">Apply</button>
+          </div>
+          <div id="shop-coupon-msg" class="shop-coupon-msg"></div>
+        </div>
+        <div class="shop-sidebar-section">
+          <h4 class="shop-sidebar-title">&#128176; Gold Wallet</h4>
+          <div class="shop-wallet-panel">
+            <div class="shop-wallet-balance">
+              <span class="shop-wallet-amount" id="shop-sidebar-wallet">0</span>
+              <span class="shop-wallet-label">gold dragons</span>
+            </div>
+            <div class="shop-wallet-actions">
+              <input type="text" id="shop-wallet-user" placeholder="Username" class="shop-input-sm" value="">
+              <button onclick="shopCheckWallet()" class="shop-btn-sm">Check</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Product Grid -->
+      <main class="shop-main">
+        <div class="shop-toolbar-row">
+          <span id="shop-result-count" class="shop-result-count">Loading items...</span>
+          <select id="shop-sort" class="shop-select" onchange="shopApplyFilters()">
+            <option value="name">Sort by Name</option>
+            <option value="price-asc">Price: Low to High</option>
+            <option value="price-desc">Price: High to Low</option>
+            <option value="house">Sort by House</option>
+          </select>
+        </div>
+        <div id="shop-grid" class="shop-grid">
+          <!-- Products rendered by JS -->
+        </div>
+      </main>
+    </div>
+
+    <!-- Cart Slide-in Panel -->
+    <div id="shop-cart-panel" class="shop-cart-panel">
+      <div class="shop-cart-header">
+        <h3>&#128722; Shopping Cart</h3>
+        <button class="shop-cart-close" onclick="shopToggleCart()">&#10005;</button>
+      </div>
+      <div id="shop-cart-items" class="shop-cart-items">
+        <p class="text-muted">Your cart is empty.</p>
+      </div>
+      <div class="shop-cart-footer">
+        <div class="shop-cart-line"><span>Subtotal</span><span id="shop-cart-subtotal">0 gold</span></div>
+        <div class="shop-cart-line shop-cart-discount" id="shop-cart-discount-row" style="display:none;">
+          <span>Discount (<span id="shop-cart-disc-pct">0</span>%)</span>
+          <span id="shop-cart-discount-amt">-0 gold</span>
+        </div>
+        <div class="shop-cart-line shop-cart-total-line"><span>Total</span><span id="shop-cart-total">0 gold</span></div>
+        <button class="shop-checkout-btn" onclick="shopOpenCheckout()">Proceed to Checkout</button>
+      </div>
+    </div>
+
+    <!-- Cart Overlay -->
+    <div id="shop-cart-overlay" class="shop-overlay" onclick="shopToggleCart()" style="display:none;"></div>
+
+    <!-- Product Detail Modal -->
+    <div id="shop-product-modal" class="shop-modal" style="display:none;">
+      <div class="shop-modal-overlay" onclick="shopCloseProduct()"></div>
+      <div class="shop-modal-content shop-product-detail">
+        <button class="shop-modal-close" onclick="shopCloseProduct()">&#10005;</button>
+        <div id="shop-product-body"></div>
+      </div>
+    </div>
+
+    <!-- Checkout Modal -->
+    <div id="shop-checkout-modal" class="shop-modal" style="display:none;">
+      <div class="shop-modal-overlay" onclick="shopCloseCheckout()"></div>
+      <div class="shop-modal-content shop-checkout-content">
+        <button class="shop-modal-close" onclick="shopCloseCheckout()">&#10005;</button>
+        <div class="shop-checkout-flow">
+          <!-- Step 1: Review -->
+          <div id="checkout-s1" class="checkout-step active">
+            <div class="checkout-step-header">
+              <div class="checkout-step-num active">1</div>
+              <span>Review Order</span>
+              <div class="checkout-step-num">2</div>
+              <span>Payment</span>
+              <div class="checkout-step-num">3</div>
+              <span>Confirmation</span>
+            </div>
+            <div id="checkout-review-body" class="checkout-body"></div>
+            <div class="checkout-actions">
+              <button class="shop-btn-secondary" onclick="shopCloseCheckout()">Cancel</button>
+              <button class="shop-btn-primary" onclick="shopCheckoutStep(2)">Continue to Payment</button>
+            </div>
+          </div>
+          <!-- Step 2: Payment -->
+          <div id="checkout-s2" class="checkout-step">
+            <div class="checkout-step-header">
+              <div class="checkout-step-num done">&#10003;</div>
+              <span>Review Order</span>
+              <div class="checkout-step-num active">2</div>
+              <span>Payment</span>
+              <div class="checkout-step-num">3</div>
+              <span>Confirmation</span>
+            </div>
+            <div class="checkout-body">
+              <div class="checkout-pay-summary">
+                <span>Total to pay:</span>
+                <strong id="checkout-pay-total">0 gold dragons</strong>
+              </div>
+              <div class="checkout-cc-form">
+                <h4>Credit Card Details</h4>
+                <div class="cc-card-preview">
+                  <div class="cc-card">
+                    <div class="cc-card-top">
+                      <span class="cc-chip">&#9632;&#9632;</span>
+                      <span id="cc-type-display" class="cc-type">VISA</span>
+                    </div>
+                    <div class="cc-number-display" id="cc-num-display">**** **** **** ****</div>
+                    <div class="cc-card-bottom">
+                      <div><span class="cc-label">CARDHOLDER</span><br><span id="cc-name-display">YOUR NAME</span></div>
+                      <div><span class="cc-label">EXPIRES</span><br><span id="cc-exp-display">MM/YY</span></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>Card Number</label>
+                  <input type="text" id="cc-number" placeholder="4111 1111 1111 1111" maxlength="19" oninput="shopUpdateCardPreview()" autocomplete="off">
+                </div>
+                <div class="form-row-2col">
+                  <div class="form-group">
+                    <label>Expiry Date</label>
+                    <input type="text" id="cc-expiry" placeholder="12/28" maxlength="5" oninput="shopUpdateCardPreview()" autocomplete="off">
+                  </div>
+                  <div class="form-group">
+                    <label>CVV</label>
+                    <input type="text" id="cc-cvv" placeholder="123" maxlength="4" autocomplete="off">
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>Cardholder Name</label>
+                  <input type="text" id="cc-name" placeholder="Jon Snow" oninput="shopUpdateCardPreview()" autocomplete="off">
+                </div>
+                <div class="form-group">
+                  <label>Billing Address</label>
+                  <input type="text" id="cc-address" placeholder="Castle Black, The Wall, Westeros" autocomplete="off">
+                </div>
+              </div>
+            </div>
+            <div class="checkout-actions">
+              <button class="shop-btn-secondary" onclick="shopCheckoutStep(1)">Back</button>
+              <button class="shop-btn-primary shop-btn-pay" onclick="shopSubmitPayment()">&#128274; Pay Now</button>
+            </div>
+          </div>
+          <!-- Step 3: Confirmation -->
+          <div id="checkout-s3" class="checkout-step">
+            <div class="checkout-step-header">
+              <div class="checkout-step-num done">&#10003;</div>
+              <span>Review Order</span>
+              <div class="checkout-step-num done">&#10003;</div>
+              <span>Payment</span>
+              <div class="checkout-step-num active">3</div>
+              <span>Confirmation</span>
+            </div>
+            <div id="checkout-confirm-body" class="checkout-body"></div>
+            <div class="checkout-actions">
+              <button class="shop-btn-primary" onclick="shopCloseCheckout(); shopToggleCart();">Continue Shopping</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Orders Modal -->
+    <div id="shop-orders-modal" class="shop-modal" style="display:none;">
+      <div class="shop-modal-overlay" onclick="shopCloseOrders()"></div>
+      <div class="shop-modal-content">
+        <button class="shop-modal-close" onclick="shopCloseOrders()">&#10005;</button>
+        <h3 style="margin-bottom:16px;">&#128230; Order History</h3>
+        <div class="form-group" style="max-width:300px;margin-bottom:16px;">
+          <label>Username</label>
+          <div style="display:flex;gap:8px;">
+            <input type="text" id="shop-orders-user" placeholder="e.g. admin, ' OR 1=1 --" autocomplete="off" style="flex:1;">
+            <button class="shop-btn-sm" onclick="shopLoadOrders()">Search</button>
+          </div>
+        </div>
+        <div id="shop-orders-body"></div>
+      </div>
+    </div>
+
+    <!-- Wallet Modal -->
+    <div id="shop-wallet-modal" class="shop-modal" style="display:none;">
+      <div class="shop-modal-overlay" onclick="shopCloseWallet()"></div>
+      <div class="shop-modal-content">
+        <button class="shop-modal-close" onclick="shopCloseWallet()">&#10005;</button>
+        <h3 style="margin-bottom:16px;">&#128176; Gold Wallet</h3>
+        <div id="shop-wallet-body">
+          <div class="shop-wallet-big">
+            <span class="shop-wallet-big-amount" id="shop-modal-wallet-amt">0</span>
+            <span>gold dragons</span>
+          </div>
+          <div class="form-group" style="max-width:300px;margin-top:16px;">
+            <label>Check Another User's Balance (IDOR)</label>
+            <div style="display:flex;gap:8px;">
+              <input type="text" id="shop-wallet-lookup" placeholder="e.g. cersei.lannister" autocomplete="off" style="flex:1;">
+              <button class="shop-btn-sm" onclick="shopLookupWallet()">Lookup</button>
+            </div>
+          </div>
+          <div id="shop-wallet-result" style="margin-top:12px;"></div>
+          <h4 style="margin-top:24px;">Transfer Gold</h4>
+          <div class="form-row-2col" style="margin-top:8px;">
+            <div class="form-group">
+              <label>From</label>
+              <input type="text" id="wallet-from" placeholder="your username" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label>To</label>
+              <input type="text" id="wallet-to" placeholder="recipient" autocomplete="off">
+            </div>
+          </div>
+          <div class="form-group" style="max-width:200px;">
+            <label>Amount</label>
+            <input type="number" id="wallet-amount" placeholder="1000" value="1000">
+          </div>
+          <button class="shop-btn-sm" onclick="shopTransferGold()" style="margin-top:8px;">Transfer</button>
+          <div id="shop-transfer-result" style="margin-top:12px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Shop Response Inspector (for seeing raw API responses) -->
+    <div id="shop-response" class="shop-response" style="display:none;">
+      <div class="shop-response-header">
+        <span>API Response</span>
+        <button onclick="document.getElementById('shop-response').style.display='none'" class="shop-cart-close">&#10005;</button>
+      </div>
+      <pre id="shop-response-body" class="shop-response-body"></pre>
+      <div id="shop-response-flag" class="flag-banner" style="display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
 <!-- Practice Lab Tab                                -->
 <!-- ══════════════════════════════════════════════ -->
-<div id="tab-lab" class="tab-panel active">
+<div id="tab-lab" class="tab-panel">
   <div class="page">
     <div class="page-header">
       <h1 class="page-title">Penetration Testing Lab</h1>
@@ -1226,6 +1528,644 @@ and hidden information that can be used for exploitation.</pre>
 
   // ── Init ───────────────────────────────────────
   loadDetectionRules();
+
+  // ═══════════════════════════════════════════════
+  // SHOP TAB — E-Commerce Storefront Logic
+  // ═══════════════════════════════════════════════
+
+  var shopItems = [];
+  var shopCart = [];  // local cart: [{item_id, name, price, quantity, icon}]
+  var shopDiscount = 0;
+  var shopCouponCode = "";
+  var shopCurrentUser = "guest";
+  var shopCategoryIcons = {
+    weapons: "\u2694",    // ⚔
+    horses: "\uD83C\uDFC7",  // 🏇
+    ships: "\u26F5",      // ⛵
+    citadels: "\uD83C\uDFF0", // 🏰
+    potions: "\uD83E\uDDEA",  // 🧪
+    scrolls: "\uD83D\uDCDC", // 📜
+    services: "\uD83D\uDDE1", // 🗡
+    goad_loot: "\uD83D\uDC80" // 💀
+  };
+
+  function shopGetIcon(cat) {
+    return shopCategoryIcons[cat] || "\uD83D\uDCE6"; // 📦 default
+  }
+
+  function shopShowResponse(data) {
+    var el = document.getElementById("shop-response");
+    var body = document.getElementById("shop-response-body");
+    var flagEl = document.getElementById("shop-response-flag");
+    el.style.display = "flex";
+    var txt = typeof data === "string" ? data : JSON.stringify(data, null, 2);
+    body.textContent = txt;
+    var flags = txt.match(/FLAG\{[^}]+\}/g);
+    if (flags) {
+      flagEl.style.display = "block";
+      flagEl.textContent = "FLAG CAPTURED: " + flags.join(", ");
+    } else {
+      flagEl.style.display = "none";
+    }
+  }
+
+  // ── Load Products ─────────────────────────────
+  function shopLoadItems() {
+    var cat = document.querySelector(".shop-cat-link.active");
+    var category = cat ? cat.getAttribute("data-cat") : "";
+    var search = document.getElementById("shop-search").value;
+    var house = document.getElementById("shop-house-filter").value;
+
+    var params = [];
+    if (category) params.push("category=" + encodeURIComponent(category));
+    if (search) params.push("search=" + encodeURIComponent(search));
+    if (house) params.push("house=" + encodeURIComponent(house));
+    var url = "/portal/api/shop/items" + (params.length ? "?" + params.join("&") : "");
+
+    fetch(url)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.items) {
+          shopItems = data.items;
+        } else if (data.data) {
+          shopItems = data.data;
+        } else {
+          shopItems = [];
+        }
+        shopSortAndRender();
+        // Show response for advanced users
+        if (search && (search.indexOf("'") !== -1 || search.indexOf("UNION") !== -1)) {
+          shopShowResponse(data);
+        }
+      })
+      .catch(function(e) { console.error("Shop load error:", e); });
+  }
+
+  function shopSortAndRender() {
+    var sort = document.getElementById("shop-sort").value;
+    var items = shopItems.slice();
+    if (sort === "price-asc") items.sort(function(a, b) { return a.price - b.price; });
+    else if (sort === "price-desc") items.sort(function(a, b) { return b.price - a.price; });
+    else if (sort === "house") items.sort(function(a, b) { return (a.house || "").localeCompare(b.house || ""); });
+    else items.sort(function(a, b) { return a.name.localeCompare(b.name); });
+
+    document.getElementById("shop-result-count").textContent = items.length + " items";
+    var grid = document.getElementById("shop-grid");
+    if (items.length === 0) {
+      grid.innerHTML = '<p class="text-muted" style="grid-column:1/-1;text-align:center;padding:40px;">No items found. Try a different search or category.</p>';
+      return;
+    }
+
+    var html = "";
+    items.forEach(function(item) {
+      var icon = shopGetIcon(item.category);
+      var stockClass = item.stock <= 3 ? " low" : "";
+      var stockText = item.stock === 0 ? "Out of stock" : item.stock + " in stock";
+      html += '<div class="shop-product-card" onclick="shopViewProduct(' + item.id + ')">' +
+        '<div class="shop-product-img">' + icon + '</div>' +
+        '<div class="shop-product-body">' +
+          '<div class="shop-product-house">' + escapeHtml(item.house || "") + '</div>' +
+          '<div class="shop-product-name">' + escapeHtml(item.name) + '</div>' +
+          '<div class="shop-product-desc">' + escapeHtml((item.description || "").replace(/FLAG\{[^}]+\}/g, "***")) + '</div>' +
+          '<div class="shop-product-footer">' +
+            '<div class="shop-product-price">' + item.price.toLocaleString() + ' <small>gold</small></div>' +
+            '<span class="shop-product-stock' + stockClass + '">' + stockText + '</span>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    });
+    grid.innerHTML = html;
+  }
+
+  // ── Category Navigation ───────────────────────
+  document.querySelectorAll(".shop-cat-link").forEach(function(link) {
+    link.addEventListener("click", function(e) {
+      e.preventDefault();
+      document.querySelectorAll(".shop-cat-link").forEach(function(l) { l.classList.remove("active"); });
+      this.classList.add("active");
+      shopLoadItems();
+    });
+  });
+
+  window.shopDoSearch = function() { shopLoadItems(); };
+  window.shopApplyFilters = function() { shopLoadItems(); };
+
+  // Also search on Enter key
+  var searchInput = document.getElementById("shop-search");
+  if (searchInput) {
+    searchInput.addEventListener("keydown", function(e) {
+      if (e.key === "Enter") shopLoadItems();
+    });
+  }
+
+  // ── Product Detail ────────────────────────────
+  window.shopViewProduct = function(itemId) {
+    fetch("/portal/api/shop/items/" + itemId)
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var item = data.item || data;
+        if (!item || !item.name) return;
+        var icon = shopGetIcon(item.category);
+
+        // Load reviews
+        fetch("/portal/api/shop/reviews/" + itemId)
+          .then(function(r) { return r.json(); })
+          .then(function(revData) {
+            var reviews = revData.reviews || [];
+            var reviewsHtml = "";
+            reviews.forEach(function(r) {
+              var stars = "";
+              for (var i = 0; i < 5; i++) stars += i < r.rating ? "\u2605" : "\u2606";
+              reviewsHtml += '<div class="shop-review">' +
+                '<div class="shop-review-header"><span class="shop-review-author">' + escapeHtml(r.author) + '</span><span class="shop-review-date">' + (r.timestamp || "").split("T")[0] + '</span></div>' +
+                '<div class="shop-review-stars">' + stars + '</div>' +
+                '<div class="shop-review-text">' + escapeHtml(r.comment) + '</div>' +
+              '</div>';
+            });
+
+            var html = '<div class="shop-detail-top">' +
+              '<div class="shop-detail-icon">' + icon + '</div>' +
+              '<div class="shop-detail-info">' +
+                '<h2>' + escapeHtml(item.name) + '</h2>' +
+                '<div class="shop-detail-house">' + escapeHtml(item.house || "") + ' &bull; ' + escapeHtml(item.category || "") + '</div>' +
+                '<div class="shop-detail-price">' + item.price.toLocaleString() + ' <small style="font-size:0.7rem;color:var(--text-muted);">gold dragons</small></div>' +
+              '</div>' +
+            '</div>' +
+            '<div class="shop-detail-desc">' + escapeHtml(item.description || "") + '</div>' +
+            '<div class="shop-detail-meta">' +
+              '<span>Stock: ' + item.stock + '</span>' +
+              '<span>Seller: ' + escapeHtml(item.seller || "unknown") + '</span>' +
+              '<span>ID: ' + item.id + '</span>' +
+            '</div>' +
+            '<div class="shop-detail-actions">' +
+              '<input type="number" class="shop-qty-input" id="detail-qty" value="1" min="1" max="' + item.stock + '">' +
+              '<button class="shop-detail-add-btn" onclick="shopAddToCart(' + item.id + ', \'' + escapeHtml(item.name).replace(/'/g, "\\'") + '\', ' + item.price + ', \'' + item.category + '\')">Add to Cart</button>' +
+            '</div>' +
+            '<div class="shop-reviews">' +
+              '<h4>Reviews (' + reviews.length + ')</h4>' +
+              (reviewsHtml || '<p class="text-muted">No reviews yet.</p>') +
+              '<div class="shop-review-form">' +
+                '<h5>Write a Review</h5>' +
+                '<div class="form-group"><label>Your Name</label><input type="text" id="review-author" placeholder="e.g. jon.snow" autocomplete="off"></div>' +
+                '<div class="form-group"><label>Rating</label><select id="review-rating"><option value="5">5 Stars</option><option value="4">4 Stars</option><option value="3">3 Stars</option><option value="2">2 Stars</option><option value="1">1 Star</option></select></div>' +
+                '<div class="form-group"><label>Comment (HTML supported)</label><textarea id="review-comment" rows="2" placeholder="Great product! Or try: &lt;script&gt;alert(1)&lt;/script&gt;"></textarea></div>' +
+                '<button class="shop-btn-sm" onclick="shopSubmitReview(' + itemId + ')">Submit Review</button>' +
+              '</div>' +
+            '</div>';
+
+            document.getElementById("shop-product-body").innerHTML = html;
+            document.getElementById("shop-product-modal").style.display = "flex";
+
+            // Show flags in response inspector if present
+            if (JSON.stringify(data).indexOf("FLAG{") !== -1) {
+              shopShowResponse(data);
+            }
+          });
+      });
+  };
+
+  window.shopCloseProduct = function() {
+    document.getElementById("shop-product-modal").style.display = "none";
+  };
+
+  // ── Reviews ───────────────────────────────────
+  window.shopSubmitReview = function(itemId) {
+    var author = document.getElementById("review-author").value || "anonymous";
+    var rating = parseInt(document.getElementById("review-rating").value);
+    var comment = document.getElementById("review-comment").value;
+
+    fetch("/portal/api/shop/reviews/" + itemId, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({author: author, rating: rating, comment: comment})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      shopShowResponse(data);
+      shopViewProduct(itemId); // Refresh
+    });
+  };
+
+  // ── Cart Management ───────────────────────────
+  window.shopAddToCart = function(itemId, name, price, category) {
+    var qtyInput = document.getElementById("detail-qty");
+    var qty = qtyInput ? parseInt(qtyInput.value) || 1 : 1;
+
+    // Add to local cart
+    var existing = null;
+    for (var i = 0; i < shopCart.length; i++) {
+      if (shopCart[i].item_id === itemId) { existing = shopCart[i]; break; }
+    }
+    if (existing) {
+      existing.quantity += qty;
+    } else {
+      shopCart.push({item_id: itemId, name: name, price: price, quantity: qty, icon: shopGetIcon(category)});
+    }
+
+    // Also sync to server
+    fetch("/portal/api/shop/cart/add", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({username: shopCurrentUser, item_id: itemId, quantity: qty})
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      if (data.flag || (JSON.stringify(data).indexOf("FLAG{") !== -1)) {
+        shopShowResponse(data);
+      }
+    });
+
+    shopUpdateCartUI();
+    shopCloseProduct();
+
+    // Brief "Added" animation on cart button
+    var badge = document.getElementById("shop-cart-badge");
+    badge.style.background = "var(--success)";
+    setTimeout(function() { badge.style.background = ""; }, 500);
+  };
+
+  window.shopRemoveFromCart = function(itemId) {
+    shopCart = shopCart.filter(function(c) { return c.item_id !== itemId; });
+    shopUpdateCartUI();
+  };
+
+  window.shopUpdateCartQty = function(itemId, delta) {
+    for (var i = 0; i < shopCart.length; i++) {
+      if (shopCart[i].item_id === itemId) {
+        shopCart[i].quantity = Math.max(1, shopCart[i].quantity + delta);
+        break;
+      }
+    }
+    shopUpdateCartUI();
+  };
+
+  function shopUpdateCartUI() {
+    var count = shopCart.reduce(function(s, c) { return s + c.quantity; }, 0);
+    var badge = document.getElementById("shop-cart-badge");
+    badge.textContent = count;
+    badge.style.display = count > 0 ? "flex" : "none";
+
+    var subtotal = shopCart.reduce(function(s, c) { return s + c.price * c.quantity; }, 0);
+    var discountAmt = Math.floor(subtotal * shopDiscount / 100);
+    var total = Math.max(0, subtotal - discountAmt);
+
+    // Cart items
+    var itemsEl = document.getElementById("shop-cart-items");
+    if (shopCart.length === 0) {
+      itemsEl.innerHTML = '<p class="text-muted" style="text-align:center;padding:40px;">Your cart is empty.</p>';
+    } else {
+      var html = "";
+      shopCart.forEach(function(c) {
+        html += '<div class="shop-cart-item">' +
+          '<div class="shop-cart-item-icon">' + c.icon + '</div>' +
+          '<div class="shop-cart-item-info">' +
+            '<div class="shop-cart-item-name">' + escapeHtml(c.name) + '</div>' +
+            '<div class="shop-cart-item-price">' + c.price.toLocaleString() + ' gold x ' + c.quantity + ' = ' + (c.price * c.quantity).toLocaleString() + '</div>' +
+          '</div>' +
+          '<div class="shop-cart-item-qty">' +
+            '<button onclick="shopUpdateCartQty(' + c.item_id + ',-1)">-</button>' +
+            '<span>' + c.quantity + '</span>' +
+            '<button onclick="shopUpdateCartQty(' + c.item_id + ',1)">+</button>' +
+          '</div>' +
+          '<button class="shop-cart-item-remove" onclick="shopRemoveFromCart(' + c.item_id + ')">&#10005;</button>' +
+        '</div>';
+      });
+      itemsEl.innerHTML = html;
+    }
+
+    // Totals
+    document.getElementById("shop-cart-subtotal").textContent = subtotal.toLocaleString() + " gold";
+    var discRow = document.getElementById("shop-cart-discount-row");
+    if (shopDiscount > 0) {
+      discRow.style.display = "flex";
+      document.getElementById("shop-cart-disc-pct").textContent = shopDiscount;
+      document.getElementById("shop-cart-discount-amt").textContent = "-" + discountAmt.toLocaleString() + " gold";
+    } else {
+      discRow.style.display = "none";
+    }
+    document.getElementById("shop-cart-total").textContent = total.toLocaleString() + " gold";
+  }
+
+  // ── Cart Toggle ───────────────────────────────
+  window.shopToggleCart = function() {
+    var panel = document.getElementById("shop-cart-panel");
+    var overlay = document.getElementById("shop-cart-overlay");
+    var isOpen = panel.classList.contains("open");
+    if (isOpen) {
+      panel.classList.remove("open");
+      overlay.style.display = "none";
+    } else {
+      panel.classList.add("open");
+      overlay.style.display = "block";
+    }
+  };
+
+  // ── Coupon ────────────────────────────────────
+  window.shopApplyCoupon = function() {
+    var code = document.getElementById("shop-coupon-input").value;
+    var msg = document.getElementById("shop-coupon-msg");
+    if (!code) { msg.textContent = "Enter a coupon code."; msg.className = "shop-coupon-msg error"; return; }
+
+    fetch("/portal/api/shop/coupon/apply", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({code: code})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.discount_pct) {
+        shopDiscount = data.discount_pct;
+        shopCouponCode = code;
+        msg.textContent = data.message || (data.discount_pct + "% discount applied!");
+        msg.className = "shop-coupon-msg success";
+        shopUpdateCartUI();
+      } else {
+        msg.textContent = data.message || "Invalid coupon.";
+        msg.className = "shop-coupon-msg error";
+      }
+      if (data.flag) shopShowResponse(data);
+    })
+    .catch(function() {
+      msg.textContent = "Error applying coupon.";
+      msg.className = "shop-coupon-msg error";
+    });
+  };
+
+  // ── Wallet ────────────────────────────────────
+  window.shopCheckWallet = function() {
+    var user = document.getElementById("shop-wallet-user").value || shopCurrentUser;
+    if (!user || user === "guest") {
+      document.getElementById("shop-sidebar-wallet").textContent = "Login first";
+      return;
+    }
+    shopCurrentUser = user;
+    fetch("/portal/api/wallet/balance?username=" + encodeURIComponent(user))
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        document.getElementById("shop-sidebar-wallet").textContent = (data.balance || 0).toLocaleString();
+        document.getElementById("shop-wallet-bal").textContent = (data.balance || 0).toLocaleString();
+        if (data.flag) shopShowResponse(data);
+      });
+  };
+
+  window.shopShowWallet = function() {
+    document.getElementById("shop-wallet-modal").style.display = "flex";
+    var user = shopCurrentUser !== "guest" ? shopCurrentUser : "";
+    if (user) {
+      fetch("/portal/api/wallet/balance?username=" + encodeURIComponent(user))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          document.getElementById("shop-modal-wallet-amt").textContent = (data.balance || 0).toLocaleString();
+        });
+    }
+  };
+
+  window.shopCloseWallet = function() {
+    document.getElementById("shop-wallet-modal").style.display = "none";
+  };
+
+  window.shopLookupWallet = function() {
+    var user = document.getElementById("shop-wallet-lookup").value;
+    if (!user) return;
+    fetch("/portal/api/wallet/balance?username=" + encodeURIComponent(user))
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var el = document.getElementById("shop-wallet-result");
+        el.innerHTML = '<div style="background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:0.85rem;">' +
+          '<strong>' + escapeHtml(user) + '</strong>: ' + (data.balance || 0).toLocaleString() + ' gold dragons' +
+          (data.flag ? '<br><span style="color:var(--success);font-weight:700;">' + data.flag + '</span>' : '') +
+        '</div>';
+        if (data.flag) shopShowResponse(data);
+      });
+  };
+
+  window.shopTransferGold = function() {
+    var from = document.getElementById("wallet-from").value;
+    var to = document.getElementById("wallet-to").value;
+    var amount = parseInt(document.getElementById("wallet-amount").value);
+    if (!from || !to) return;
+    fetch("/portal/api/wallet/transfer", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({from: from, to: to, amount: amount})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var el = document.getElementById("shop-transfer-result");
+      el.innerHTML = '<div style="background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:0.85rem;">' +
+        escapeHtml(data.message || "Transfer complete") +
+        (data.flag ? '<br><span style="color:var(--success);font-weight:700;">' + data.flag + '</span>' : '') +
+      '</div>';
+      if (data.flag) shopShowResponse(data);
+    });
+  };
+
+  // ── Orders ────────────────────────────────────
+  window.shopShowOrders = function() {
+    document.getElementById("shop-orders-modal").style.display = "flex";
+    document.getElementById("shop-orders-user").value = shopCurrentUser !== "guest" ? shopCurrentUser : "";
+  };
+
+  window.shopCloseOrders = function() {
+    document.getElementById("shop-orders-modal").style.display = "none";
+  };
+
+  window.shopLoadOrders = function() {
+    var user = document.getElementById("shop-orders-user").value;
+    fetch("/portal/api/shop/orders?username=" + encodeURIComponent(user))
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var orders = data.orders || [];
+        var body = document.getElementById("shop-orders-body");
+        if (orders.length === 0) {
+          body.innerHTML = '<p class="text-muted">No orders found.</p>';
+        } else {
+          var html = '<table class="checkout-review-table"><thead><tr><th>Order</th><th>Items</th><th>Total</th><th>Status</th><th>Date</th></tr></thead><tbody>';
+          orders.forEach(function(o) {
+            var itemNames = "";
+            if (o.items) {
+              itemNames = o.items.map(function(i) { return escapeHtml(i.item_name || ""); }).join(", ");
+            } else if (o.item_name) {
+              itemNames = escapeHtml(o.item_name);
+            }
+            html += '<tr>' +
+              '<td>#' + (o.order_id || o.id || "?") + '</td>' +
+              '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;">' + itemNames + '</td>' +
+              '<td style="color:var(--gold);font-weight:600;">' + (o.total || o.total_price || 0).toLocaleString() + '</td>' +
+              '<td>' + escapeHtml(o.status || "confirmed") + '</td>' +
+              '<td>' + (o.timestamp || o.order_date || "").split("T")[0] + '</td>' +
+            '</tr>';
+          });
+          html += '</tbody></table>';
+          body.innerHTML = html;
+        }
+        shopShowResponse(data);
+      });
+  };
+
+  // ── Checkout ──────────────────────────────────
+  window.shopOpenCheckout = function() {
+    if (shopCart.length === 0) return;
+    shopToggleCart(); // Close cart panel
+
+    // Populate review step
+    var subtotal = shopCart.reduce(function(s, c) { return s + c.price * c.quantity; }, 0);
+    var discountAmt = Math.floor(subtotal * shopDiscount / 100);
+    var total = Math.max(0, subtotal - discountAmt);
+
+    var html = '<table class="checkout-review-table"><thead><tr><th>Item</th><th>Qty</th><th>Price</th><th>Subtotal</th></tr></thead><tbody>';
+    shopCart.forEach(function(c) {
+      html += '<tr>' +
+        '<td>' + c.icon + ' ' + escapeHtml(c.name) + '</td>' +
+        '<td>' + c.quantity + '</td>' +
+        '<td>' + c.price.toLocaleString() + '</td>' +
+        '<td style="color:var(--gold);font-weight:600;">' + (c.price * c.quantity).toLocaleString() + '</td>' +
+      '</tr>';
+    });
+    html += '</tbody></table>';
+    html += '<div style="margin-top:12px;text-align:right;">';
+    html += '<div style="font-size:0.85rem;color:var(--text-muted);">Subtotal: ' + subtotal.toLocaleString() + ' gold</div>';
+    if (shopDiscount > 0) {
+      html += '<div style="font-size:0.85rem;color:var(--success);">Discount (' + shopDiscount + '%): -' + discountAmt.toLocaleString() + ' gold</div>';
+    }
+    html += '<div style="font-size:1.1rem;font-weight:700;color:var(--gold);margin-top:4px;">Total: ' + total.toLocaleString() + ' gold dragons</div>';
+    html += '</div>';
+
+    document.getElementById("checkout-review-body").innerHTML = html;
+    document.getElementById("checkout-pay-total").textContent = total.toLocaleString() + " gold dragons";
+
+    shopCheckoutStep(1);
+    document.getElementById("shop-checkout-modal").style.display = "flex";
+  };
+
+  window.shopCloseCheckout = function() {
+    document.getElementById("shop-checkout-modal").style.display = "none";
+  };
+
+  window.shopCheckoutStep = function(step) {
+    document.querySelectorAll(".checkout-step").forEach(function(s) { s.classList.remove("active"); });
+    var el = document.getElementById("checkout-s" + step);
+    if (el) el.classList.add("active");
+  };
+
+  // ── Credit Card Preview ───────────────────────
+  window.shopUpdateCardPreview = function() {
+    var num = document.getElementById("cc-number").value;
+    var exp = document.getElementById("cc-expiry").value;
+    var name = document.getElementById("cc-name").value;
+
+    // Format card number display
+    var clean = num.replace(/\D/g, "");
+    var display = "";
+    for (var i = 0; i < 16; i++) {
+      if (i > 0 && i % 4 === 0) display += " ";
+      display += i < clean.length ? clean[i] : "*";
+    }
+    document.getElementById("cc-num-display").textContent = display;
+    document.getElementById("cc-exp-display").textContent = exp || "MM/YY";
+    document.getElementById("cc-name-display").textContent = (name || "YOUR NAME").toUpperCase();
+
+    // Card type detection
+    var type = "CARD";
+    if (clean.startsWith("4")) type = "VISA";
+    else if (/^5[1-5]/.test(clean)) type = "MASTERCARD";
+    else if (/^3[47]/.test(clean)) type = "AMEX";
+    else if (clean.startsWith("6011")) type = "DISCOVER";
+    document.getElementById("cc-type-display").textContent = type;
+  };
+
+  // ── Submit Payment ────────────────────────────
+  window.shopSubmitPayment = function() {
+    var ccNum = document.getElementById("cc-number").value;
+    var ccExp = document.getElementById("cc-expiry").value;
+    var ccCvv = document.getElementById("cc-cvv").value;
+    var ccName = document.getElementById("cc-name").value;
+    var ccAddr = document.getElementById("cc-address").value;
+
+    if (!ccNum || !ccExp || !ccCvv || !ccName) {
+      alert("Please fill in all payment fields.");
+      return;
+    }
+
+    var subtotal = shopCart.reduce(function(s, c) { return s + c.price * c.quantity; }, 0);
+    var discountAmt = Math.floor(subtotal * shopDiscount / 100);
+    var total = Math.max(0, subtotal - discountAmt);
+
+    var payload = {
+      username: shopCurrentUser,
+      card_number: ccNum,
+      card_expiry: ccExp,
+      card_cvv: ccCvv,
+      card_name: ccName,
+      billing_address: ccAddr,
+      total: total,
+      coupon_code: shopCouponCode,
+      items: shopCart.map(function(c) { return {item_id: c.item_id, quantity: c.quantity}; })
+    };
+
+    fetch("/portal/api/shop/checkout", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(payload)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.status === "success") {
+        var order = data.order || {};
+        var confHtml = '<div class="checkout-success">' +
+          '<div class="checkout-success-icon">&#9989;</div>' +
+          '<h3>Order Confirmed!</h3>' +
+          '<p style="color:var(--text-secondary);">Your order has been placed successfully.</p>' +
+          '<div class="checkout-order-summary">' +
+            '<div style="margin-bottom:8px;"><strong>Order #' + (order.order_id || "?") + '</strong></div>' +
+            '<div>Buyer: ' + escapeHtml(order.buyer || shopCurrentUser) + '</div>' +
+            '<div>Items: ' + (order.items ? order.items.length : 0) + '</div>' +
+            '<div>Payment: ' + escapeHtml((order.payment || {}).card_type || "Card") + ' ending ' + escapeHtml((order.payment || {}).last4 || "****") + '</div>' +
+            '<div style="color:var(--gold);font-weight:700;margin-top:8px;">Total: ' + (order.total || 0).toLocaleString() + ' gold dragons</div>' +
+          '</div>' +
+          (data.flag ? '<div class="flag-banner" style="margin-top:16px;">' + data.flag + '</div>' : '') +
+        '</div>';
+        document.getElementById("checkout-confirm-body").innerHTML = confHtml;
+        shopCheckoutStep(3);
+
+        // Clear local cart
+        shopCart = [];
+        shopDiscount = 0;
+        shopCouponCode = "";
+        shopUpdateCartUI();
+
+        // Clear CC fields
+        document.getElementById("cc-number").value = "";
+        document.getElementById("cc-expiry").value = "";
+        document.getElementById("cc-cvv").value = "";
+        document.getElementById("cc-name").value = "";
+        document.getElementById("cc-address").value = "";
+        shopUpdateCardPreview();
+      }
+      shopShowResponse(data);
+    })
+    .catch(function(e) {
+      shopShowResponse({error: "Payment failed: " + e.message});
+    });
+  };
+
+  // ── Auto-set user from session ────────────────
+  // If user logs in via Practice Lab, sync to shop
+  var origHandleResponse = handleResponse;
+  handleResponse = function(method, url, status, headers, body, elapsed) {
+    origHandleResponse(method, url, status, headers, body, elapsed);
+    if ((url.indexOf("/auth/login") !== -1 || url.indexOf("/auth/register") !== -1) && status === 200) {
+      try {
+        var data = JSON.parse(body);
+        if (data.user && data.user.username) {
+          shopCurrentUser = data.user.username;
+          document.getElementById("shop-wallet-user").value = shopCurrentUser;
+          shopCheckWallet();
+        }
+      } catch(e) {}
+    }
+  };
+
+  // ── Initial load ──────────────────────────────
+  shopLoadItems();
 
 })();
 </script>

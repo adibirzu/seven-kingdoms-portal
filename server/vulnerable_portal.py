@@ -2307,6 +2307,147 @@ async def shop_purchase(request: Request):
         }
 
 
+@router.post("/api/shop/checkout")
+async def shop_checkout(request: Request):
+    """Process payment with credit card details.
+
+    Vulnerabilities:
+        - PCI violation: CC data logged in plaintext (A09: Security Logging Failures)
+        - No HTTPS enforcement — CC data transmitted in cleartext
+        - CC data stored in server memory (A02: Cryptographic Failures)
+        - No input validation on CC fields
+        - Price can be overridden via 'total' field (A04: Insecure Design)
+    """
+    ip, ua = _get_client_info(request)
+    body = await request.json()
+
+    with tracer.start_as_current_span("shop.checkout_flow", attributes={
+        "shop.source_ip": ip,
+    }) as checkout_span:
+        username = body.get("username", "guest")
+        cc_number = body.get("card_number", "")
+        cc_expiry = body.get("card_expiry", "")
+        cc_cvv = body.get("card_cvv", "")
+        cc_name = body.get("card_name", "")
+        billing = body.get("billing_address", "")
+        client_total = body.get("total", 0)
+        coupon_code = body.get("coupon_code", "")
+
+        checkout_span.set_attribute("shop.buyer", username)
+
+        # VULN: Log CC data (PCI violation, A09)
+        with tracer.start_as_current_span("shop.process_payment", attributes={
+            "payment.method": "credit_card",
+            "payment.card_last4": cc_number[-4:] if len(cc_number) >= 4 else "****",
+            "payment.card_type": _detect_card_type(cc_number),
+            "payment.cardholder": cc_name,
+            "payment.billing": billing,
+        }) as pay_span:
+            # VULN: CC number stored unmasked in trace attributes
+            if len(cc_number.replace(" ", "")) >= 13:
+                pay_span.set_attribute("payment.card_full", cc_number)  # PCI VIOLATION
+                pay_span.set_attribute("payment.cvv", cc_cvv)          # PCI VIOLATION
+
+            with security_span("pci_violation", severity="critical",
+                               payload=f"CC ending {cc_number[-4:]}" if cc_number else "no card",
+                               source_ip=ip, user_agent=ua, username=username,
+                               flag="FLAG{PC1_V10L4T10N_CC_L34K}",
+                               extra_attrs={
+                                   "security.pci.card_logged": True,
+                                   "security.pci.cvv_logged": bool(cc_cvv),
+                               }):
+                detection_event("pci_violation", severity="critical",
+                                description=f"CC data processed in plaintext for user {username}",
+                                source_ip=ip, username=username)
+
+        # Compute cart total
+        cart = SHOP_CARTS.get(username, [])
+        server_total = sum(e["price"] * e["quantity"] for e in cart)
+
+        # Apply coupon discount
+        discount_pct = 0
+        if coupon_code:
+            from .shop_enhanced import COUPONS, _decode_coupon
+            coupon = COUPONS.get(coupon_code.upper())
+            if coupon:
+                discount_pct = coupon["discount_pct"]
+            else:
+                decoded = _decode_coupon(coupon_code)
+                if decoded:
+                    discount_pct = decoded["discount_pct"]
+
+        discount_amount = int(server_total * discount_pct / 100)
+        final_total = max(0, server_total - discount_amount)
+
+        # VULN: Price manipulation — client total trusted if provided
+        if client_total and client_total > 0:
+            price_diff = abs(client_total - final_total)
+            if price_diff > 1:
+                with security_span("auth_bypass", severity="critical",
+                                   payload=f"client={client_total} server={final_total}",
+                                   source_ip=ip, user_agent=ua, username=username,
+                                   flag="FLAG{CH3CK0UT_PR1C3_H4CK}"):
+                    pass
+            final_total = int(client_total)  # VULN: Accept client price
+
+        # Record the order
+        order_lines = []
+        for e in cart:
+            order_lines.append({
+                "item_id": e["item_id"], "item_name": e["item_name"],
+                "quantity": e["quantity"], "unit_price": e["price"],
+                "line_total": e["price"] * e["quantity"],
+            })
+
+        order_id = len(SHOP_ORDERS) + 1
+        order = {
+            "order_id": order_id,
+            "buyer": username,
+            "items": order_lines,
+            "subtotal": server_total,
+            "discount": discount_amount,
+            "total": final_total,
+            "payment": {
+                "method": "credit_card",
+                "card_type": _detect_card_type(cc_number),
+                "last4": cc_number[-4:] if len(cc_number) >= 4 else "****",
+                "cardholder": cc_name,
+            },
+            "status": "confirmed",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        SHOP_ORDERS.append(order)
+        SHOP_CARTS.pop(username, None)
+
+        checkout_span.set_attribute("shop.order_id", order_id)
+        checkout_span.set_attribute("shop.total", final_total)
+
+        logger.info(f"shop.checkout order_id={order_id} buyer={username} total={final_total} ip={ip}")
+
+        result = {
+            "status": "success",
+            "message": "Payment processed successfully!",
+            "order": order,
+        }
+        if final_total != server_total and client_total:
+            result["flag"] = "FLAG{CH3CK0UT_PR1C3_H4CK}"
+        return result
+
+
+def _detect_card_type(number: str) -> str:
+    """Detect card type from number prefix."""
+    n = number.replace(" ", "").replace("-", "")
+    if n.startswith("4"):
+        return "Visa"
+    elif n.startswith(("51", "52", "53", "54", "55")):
+        return "Mastercard"
+    elif n.startswith(("34", "37")):
+        return "Amex"
+    elif n.startswith("6011"):
+        return "Discover"
+    return "Unknown"
+
+
 @router.get("/api/shop/orders")
 async def shop_order_history(request: Request, username: str = ""):
     """View order history. Queries MSSQL for persisted orders + in-memory.
