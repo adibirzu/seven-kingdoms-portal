@@ -1838,6 +1838,40 @@ SHOP_CATALOG = [
      "description": "Anti-dragon siege weapon. Tested against Drogon.", "stock": 3, "seller": "cersei.lannister"},
     {"id": 15, "name": "Unsullied Armor Set", "category": "weapons", "price": 1500, "house": "Targaryen",
      "description": "Standard-issue armor from Astapor. Includes spear and shield.", "stock": 50, "seller": "daenerys.targaryen"},
+    # ── Potions & Poisons ──
+    {"id": 16, "name": "Tears of Lys", "category": "potions", "price": 10000, "house": "Arryn",
+     "description": "Odorless, colorless poison favored by court assassins. Leaves no trace.", "stock": 5, "seller": "admin"},
+    {"id": 17, "name": "Shade of the Evening", "category": "potions", "price": 3000, "house": "Braavos",
+     "description": "Blue liquid from Qarth. Warlocks use it to see visions.", "stock": 10, "seller": "admin"},
+    {"id": 18, "name": "Milk of the Poppy", "category": "potions", "price": 100, "house": "Citadel",
+     "description": "Maester's painkiller. Highly addictive. Freely prescribed.", "stock": 200, "seller": "admin"},
+    {"id": 19, "name": "The Strangler", "category": "potions", "price": 25000, "house": "Tyrell",
+     "description": "Crystallized poison from Asshai plants. Used at the Purple Wedding.", "stock": 2, "seller": "admin"},
+    # ── Scrolls & Intelligence ──
+    {"id": 20, "name": "Raven Scroll — Troop Movements", "category": "scrolls", "price": 500, "house": "Stark",
+     "description": "Intercepted raven message with Northern army positions. FLAG{1NT3RC3PT3D_R4V3N}", "stock": 10, "seller": "jon.snow"},
+    {"id": 21, "name": "Varys' Little Birds Report", "category": "scrolls", "price": 8000, "house": "Targaryen",
+     "description": "Intelligence report from the Spider's network. Contains IP addresses of GOAD domain controllers.", "stock": 3, "seller": "admin"},
+    {"id": 22, "name": "Citadel Maester's Chain Link", "category": "scrolls", "price": 2000, "house": "Citadel",
+     "description": "Knowledge link: Valyrian steel (magic), iron (warcraft), gold (economics).", "stock": 15, "seller": "admin"},
+    # ── Mercenary Contracts ──
+    {"id": 23, "name": "Golden Company Contract", "category": "services", "price": 100000, "house": "Essos",
+     "description": "20,000 sellswords, elephants not included. Payment in gold only.", "stock": 1, "seller": "cersei.lannister"},
+    {"id": 24, "name": "Faceless Men Assassination", "category": "services", "price": 500000, "house": "Braavos",
+     "description": "A man has no name. Valar morghulis. Price negotiable for kings.", "stock": 1, "seller": "arya.stark"},
+    {"id": 25, "name": "Second Sons Mercenary Band", "category": "services", "price": 50000, "house": "Essos",
+     "description": "Sellsword company. Formerly led by Daario Naharis.", "stock": 1, "seller": "daenerys.targaryen"},
+    # ── GOAD AD-Specific Items ──
+    {"id": 26, "name": "Kerberos TGT — krbtgt Hash", "category": "goad_loot", "price": 999999, "house": "Seven Kingdoms",
+     "description": "Golden ticket material from sevenkingdoms.local. Use with Mimikatz.", "stock": 1, "seller": "admin"},
+    {"id": 27, "name": "NTLM Hash Collection", "category": "goad_loot", "price": 75000, "house": "North",
+     "description": "Extracted from DC02 (winterfell). Contains north.sevenkingdoms.local domain admin hash.", "stock": 1, "seller": "admin"},
+    {"id": 28, "name": "SPN Service Ticket", "category": "goad_loot", "price": 5000, "house": "North",
+     "description": "MSSQLSvc/castelblack.north.sevenkingdoms.local:1433 — crack for service account password.", "stock": 10, "seller": "admin"},
+    {"id": 29, "name": "GPO Abuse Script", "category": "goad_loot", "price": 15000, "house": "Seven Kingdoms",
+     "description": "SharpGPOAbuse payload for DC01. Adds user to Domain Admins via GPO.", "stock": 5, "seller": "admin"},
+    {"id": 30, "name": "BloodHound Collection", "category": "goad_loot", "price": 20000, "house": "Seven Kingdoms",
+     "description": "Complete AD graph export from SharpHound. Maps all attack paths across 3 GOAD domains.", "stock": 1, "seller": "admin"},
 ]
 
 # In-memory orders and cart (per-user)
@@ -1850,7 +1884,7 @@ IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'shop_items')
 CREATE TABLE shop_items (
     id INT PRIMARY KEY, name NVARCHAR(200), category NVARCHAR(50),
     price INT, house NVARCHAR(100), description NVARCHAR(500),
-    stock INT, seller NVARCHAR(100)
+    stock INT, seller NVARCHAR(100), deleted BIT DEFAULT 0
 );
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'shop_orders')
 CREATE TABLE shop_orders (
@@ -1859,6 +1893,18 @@ CREATE TABLE shop_orders (
     order_date DATETIME DEFAULT GETDATE(), status NVARCHAR(50) DEFAULT 'confirmed'
 );
 """
+
+# Deleted products — discoverable via SQLi (like Juice Shop's Christmas Special)
+DELETED_PRODUCTS = [
+    {"id": 100, "name": "Robert's Rebellion Memorial Sword", "category": "weapons",
+     "price": 999, "house": "Baratheon",
+     "description": "Limited edition from 283 AC. DISCONTINUED. FLAG{D3L3T3D_PR0DUCT_R3B3LL10N}",
+     "stock": 0, "seller": "admin", "deleted": True},
+    {"id": 101, "name": "Night King's Ice Spear", "category": "weapons",
+     "price": 1, "house": "White Walkers",
+     "description": "Kills dragons. Not for resale. FLAG{FR0Z3N_F1R3_D1SC0V3RY}",
+     "stock": 0, "seller": "admin", "deleted": True},
+]
 
 
 def _mssql_shop_bootstrap(server_name: str = "castelblack") -> bool:
@@ -1881,8 +1927,16 @@ def _mssql_shop_bootstrap(server_name: str = "castelblack") -> bool:
         if count == 0:
             for item in SHOP_CATALOG:
                 cursor.execute(
-                    "INSERT INTO shop_items (id, name, category, price, house, description, stock, seller) "
-                    "VALUES (%d, %s, %s, %d, %s, %s, %d, %s)",
+                    "INSERT INTO shop_items (id, name, category, price, house, description, stock, seller, deleted) "
+                    "VALUES (%d, %s, %s, %d, %s, %s, %d, %s, 0)",
+                    (item["id"], item["name"], item["category"], item["price"],
+                     item["house"], item["description"], item["stock"], item["seller"]),
+                )
+            # Seed soft-deleted products (discoverable via SQLi)
+            for item in DELETED_PRODUCTS:
+                cursor.execute(
+                    "INSERT INTO shop_items (id, name, category, price, house, description, stock, seller, deleted) "
+                    "VALUES (%d, %s, %s, %d, %s, %s, %d, %s, 1)",
                     (item["id"], item["name"], item["category"], item["price"],
                      item["house"], item["description"], item["stock"], item["seller"]),
                 )

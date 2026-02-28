@@ -426,6 +426,218 @@ DETECTION_RULES: list[dict] = [
         ),
         "portal_endpoints": ["/portal/api/goad/dcsync"],
     },
+    # ── Enhanced Marketplace (Juice Shop-Inspired) ───────────────
+    {
+        "id": "SKP-021",
+        "name": "Forged Identity — Review Submitted as Another User",
+        "severity": "high",
+        "mitre_id": "T1078",
+        "mitre_tactic": "defense-evasion",
+        "owasp": "A01:2021",
+        "attack_type": "forged_identity",
+        "description": "Product review submitted with a different author name than the authenticated user.",
+        "apm_query": (
+            "show (spans) SpanName as Name, "
+            "SpanAttribute['security.actual_user'] as ActualUser, "
+            "SpanAttribute['security.claimed_user'] as ClaimedUser "
+            "where SpanAttribute['security.attack.type'] = 'forged_identity'"
+        ),
+        "la_query": (
+            "'Log Source' = 'OCI APM Trace' "
+            "| where security_attack_type = 'forged_identity' "
+            "| stats count by security_actual_user, security_claimed_user"
+        ),
+        "portal_endpoints": ["/portal/api/shop/reviews/{item_id}"],
+    },
+    {
+        "id": "SKP-022",
+        "name": "Coupon Forgery — Weak Encoding Exploited",
+        "severity": "high",
+        "mitre_id": "T1565",
+        "mitre_tactic": "impact",
+        "owasp": "A02:2021",
+        "attack_type": "coupon_forge",
+        "description": "Forged coupon submitted using decoded and re-encoded base64 format.",
+        "apm_query": (
+            "show (spans) SpanAttribute['coupon.forged_code'] as Code, "
+            "SpanAttribute['coupon.forged_discount'] as Discount "
+            "where SpanAttribute['security.attack.type'] = 'coupon_forge'"
+        ),
+        "la_query": (
+            "'Log Source' = 'OCI APM Trace' "
+            "| where security_attack_type = 'coupon_forge' "
+            "| stats count as forge_count by security_source_ip"
+        ),
+        "portal_endpoints": ["/portal/api/shop/coupon/apply"],
+    },
+    {
+        "id": "SKP-023",
+        "name": "Negative Quantity — Reverse Purchase Fraud",
+        "severity": "high",
+        "mitre_id": "T1565.002",
+        "mitre_tactic": "impact",
+        "owasp": "A04:2021",
+        "attack_type": "negative_quantity",
+        "description": "Negative quantity or amount exploited to reverse financial transactions.",
+        "apm_query": (
+            "show (spans) SpanAttribute['shop.quantity'] as Quantity, "
+            "SpanAttribute['wallet.negative_amount'] as Amount "
+            "where SpanAttribute['security.attack.type'] = 'negative_quantity' "
+            "or SpanAttribute['security.attack.subtype'] = 'negative_quantity'"
+        ),
+        "la_query": (
+            "'Log Source' = 'OCI APM Trace' "
+            "| where security_attack_type = 'negative_quantity' "
+            "or security_attack_type = 'negative_transfer' "
+            "| stats count by security_source_ip"
+        ),
+        "portal_endpoints": ["/portal/api/shop/purchase-enhanced", "/portal/api/wallet/transfer"],
+    },
+    {
+        "id": "SKP-024",
+        "name": "Price Tampering — Client-Side Price Override",
+        "severity": "high",
+        "mitre_id": "T1565.002",
+        "mitre_tactic": "impact",
+        "owasp": "A04:2021",
+        "attack_type": "price_tampering",
+        "description": "Purchase request included client-supplied price overriding server-side value.",
+        "apm_query": (
+            "show (spans) SpanAttribute['shop.original_price'] as OriginalPrice, "
+            "SpanAttribute['shop.tampered_price'] as TamperedPrice "
+            "where SpanAttribute['security.attack.type'] = 'price_tampering'"
+        ),
+        "la_query": (
+            "'Log Source' = 'OCI APM Trace' "
+            "| where security_attack_type = 'price_tampering' "
+            "| stats count by security_source_ip, shop_original_price, shop_tampered_price"
+        ),
+        "portal_endpoints": ["/portal/api/shop/purchase-enhanced"],
+    },
+    {
+        "id": "SKP-025",
+        "name": "XXE — XML External Entity in Trade Import",
+        "severity": "critical",
+        "mitre_id": "T1190",
+        "mitre_tactic": "initial-access",
+        "owasp": "A05:2021",
+        "attack_type": "xxe",
+        "description": "XML external entity injection in trade import endpoint, enabling file read or SSRF.",
+        "apm_query": (
+            "show (spans) SpanAttribute['security.xxe.body_snippet'] as XMLSnippet "
+            "where SpanAttribute['security.attack.type'] = 'xxe'"
+        ),
+        "la_query": (
+            "'Log Source' = 'OCI APM Trace' "
+            "| where security_attack_type = 'xxe' "
+            "| stats count by security_source_ip"
+        ),
+        "portal_endpoints": ["/portal/api/trade/import"],
+    },
+    {
+        "id": "SKP-026",
+        "name": "CSRF — Allegiance Change Without Token",
+        "severity": "high",
+        "mitre_id": "T1185",
+        "mitre_tactic": "collection",
+        "owasp": "A01:2021",
+        "attack_type": "csrf",
+        "description": "Cross-site request forgery on allegiance change — no CSRF token validated.",
+        "apm_query": (
+            "show (spans) SpanAttribute['security.csrf.referer'] as Referer, "
+            "SpanAttribute['security.csrf.origin'] as Origin "
+            "where SpanAttribute['security.attack.type'] = 'csrf'"
+        ),
+        "la_query": (
+            "'Log Source' = 'OCI APM Trace' "
+            "| where security_attack_type = 'csrf' "
+            "| stats count by security_source_ip, security_csrf_referer"
+        ),
+        "portal_endpoints": ["/portal/api/users/change-allegiance"],
+    },
+    {
+        "id": "SKP-027",
+        "name": "OSINT Password Reset — Security Question Bypass",
+        "severity": "high",
+        "mitre_id": "T1110.001",
+        "mitre_tactic": "credential-access",
+        "owasp": "A07:2021",
+        "attack_type": "security_question_bypass",
+        "description": "Password reset via security question with publicly known GoT trivia answer.",
+        "apm_query": (
+            "show (spans) SpanAttribute['security.reset.username'] as User, "
+            "SpanAttribute['security.reset.method'] as Method "
+            "where SpanAttribute['security.attack.type'] = 'security_question_bypass'"
+        ),
+        "la_query": (
+            "'Log Source' = 'OCI APM Trace' "
+            "| where security_attack_type = 'security_question_bypass' "
+            "or security_attack_type = 'password_reset_osint' "
+            "| stats count by security_source_ip, security_username"
+        ),
+        "portal_endpoints": ["/portal/api/auth/reset-password-security"],
+    },
+    {
+        "id": "SKP-028",
+        "name": "Privilege Escalation — Hidden Role in Registration",
+        "severity": "critical",
+        "mitre_id": "T1068",
+        "mitre_tactic": "privilege-escalation",
+        "owasp": "A04:2021",
+        "attack_type": "privilege_escalation",
+        "description": "User registered with admin role via hidden 'role' parameter in registration request.",
+        "apm_query": (
+            "show (spans) SpanAttribute['security.escalation.role'] as Role, "
+            "SpanAttribute['security.escalation.username'] as User "
+            "where SpanAttribute['security.attack.type'] = 'privilege_escalation'"
+        ),
+        "la_query": (
+            "'Log Source' = 'OCI APM Trace' "
+            "| where security_attack_type = 'privilege_escalation' "
+            "| stats count by security_source_ip, security_escalation_role"
+        ),
+        "portal_endpoints": ["/portal/api/auth/register-enhanced"],
+    },
+    {
+        "id": "SKP-029",
+        "name": "CAPTCHA Bypass — Anti-Automation Defeated",
+        "severity": "medium",
+        "mitre_id": "T1185",
+        "mitre_tactic": "collection",
+        "owasp": "A07:2021",
+        "attack_type": "captcha_bypass",
+        "description": "Feedback submitted without solving CAPTCHA — answer leaked in API response.",
+        "apm_query": (
+            "show (spans) SpanAttribute['security.captcha.skipped'] as Skipped "
+            "where SpanAttribute['security.attack.type'] = 'captcha_bypass'"
+        ),
+        "la_query": (
+            "'Log Source' = 'OCI APM Trace' "
+            "| where security_attack_type = 'captcha_bypass' "
+            "| stats count by security_source_ip"
+        ),
+        "portal_endpoints": ["/portal/api/feedback"],
+    },
+    {
+        "id": "SKP-030",
+        "name": "Prototype Pollution — Config Deep Merge Exploit",
+        "severity": "critical",
+        "mitre_id": "T1059",
+        "mitre_tactic": "execution",
+        "owasp": "A03:2021",
+        "attack_type": "prototype_pollution",
+        "description": "Prototype pollution via __proto__ or constructor keys in config update deep merge.",
+        "apm_query": (
+            "show (spans) SpanAttribute['security.pollution.keys'] as PollutionKeys "
+            "where SpanAttribute['security.attack.type'] = 'prototype_pollution'"
+        ),
+        "la_query": (
+            "'Log Source' = 'OCI APM Trace' "
+            "| where security_attack_type = 'prototype_pollution' "
+            "| stats count by security_source_ip"
+        ),
+        "portal_endpoints": ["/portal/api/config/update"],
+    },
     # ── Meta / Aggregate Rules ────────────────────────────────────
     {
         "id": "SKP-020",

