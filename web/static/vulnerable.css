@@ -2340,3 +2340,38 @@ body {
   .cc-card { width: 280px; height: 170px; }
   .shop-quick-add { opacity: 1; transform: translateY(0); }
 }
+
+/* ── Disclaimer Footer ───────────────────────────── */
+.site-disclaimer {
+  background: rgba(13, 17, 23, 0.95);
+  border-top: 1px solid rgba(48, 54, 61, 0.6);
+  padding: 24px 32px;
+  margin-top: 0;
+  text-align: center;
+}
+.disclaimer-content {
+  max-width: 800px;
+  margin: 0 auto;
+  font-size: 0.75rem;
+  color: rgba(139, 148, 158, 0.8);
+  line-height: 1.6;
+}
+.disclaimer-title {
+  color: rgba(201, 209, 217, 0.6);
+  font-weight: 600;
+  font-size: 0.8rem;
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+.disclaimer-content a {
+  color: var(--gold);
+  opacity: 0.7;
+  text-decoration: none;
+}
+.disclaimer-content a:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+.disclaimer-content p {
+  margin: 6px 0;
+}

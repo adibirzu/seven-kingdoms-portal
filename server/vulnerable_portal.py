@@ -2632,6 +2632,293 @@ async def shop_order_history(request: Request, username: str = ""):
         return {"status": "success", "data_source": source, "orders": orders}
 
 
+# ── A03:2025 — Software Supply Chain Failures ─────────────────────
+
+@router.post("/api/shop/payment-plugin")
+async def shop_payment_plugin(request: Request):
+    """Load a third-party payment processing plugin by URL.
+
+    VULN (A03:2025): Fetches and executes untrusted remote code without
+    integrity verification — no signature check, no hash pinning, no
+    allow-list of trusted sources.  Classic supply chain attack vector.
+    """
+    ip, ua = _get_client_info(request)
+    body = await request.json()
+    plugin_url = body.get("plugin_url", "")
+    plugin_name = body.get("plugin_name", "custom-gateway")
+
+    with tracer.start_as_current_span("shop.payment_plugin", attributes={
+        "shop.plugin_url": plugin_url,
+        "shop.plugin_name": plugin_name,
+        "shop.source_ip": ip,
+    }) as plug_span:
+
+        # VULN: No signature verification, no allow-list, no hash pinning
+        if not plugin_url:
+            return {"status": "error", "message": "plugin_url is required"}
+
+        # Detect supply chain attack patterns
+        suspicious = any(p in plugin_url.lower() for p in [
+            "evil", "malicious", "attacker", "pastebin", "raw.github",
+            "file://", "data:", "javascript:",
+        ])
+
+        try:
+            # VULN: Fetches arbitrary URL (supply chain + SSRF)
+            async with httpx.AsyncClient(timeout=5) as client:
+                resp = await client.get(plugin_url)
+                plugin_code = resp.text
+
+            plug_span.set_attribute("shop.plugin_size", len(plugin_code))
+            plug_span.set_attribute("shop.plugin_source_verified", False)  # Always false!
+
+            # VULN: eval() on untrusted code (RCE via supply chain)
+            # In a real app this would be `importlib` or `exec()` — we simulate
+            has_exec = any(kw in plugin_code.lower() for kw in [
+                "import os", "subprocess", "eval(", "exec(", "__import__",
+                "system(", "popen(", "pickle",
+            ])
+
+            result = {
+                "status": "loaded",
+                "plugin_name": plugin_name,
+                "plugin_url": plugin_url,
+                "code_length": len(plugin_code),
+                "integrity_check": "none",        # No SRI, no signing
+                "hash_pinning": "disabled",        # No hash verification
+                "allow_list_check": "bypassed",    # No URL allow-list
+                "source_verified": False,
+                "malicious_patterns_detected": has_exec,
+                "preview": plugin_code[:200],
+            }
+
+            with security_span("supply_chain", severity="critical",
+                               payload=plugin_url, source_ip=ip, user_agent=ua,
+                               flag="FLAG{SUPPLY_CH41N_PLU61N_RCE}",
+                               extra_attrs={
+                                   "security.supply_chain.url": plugin_url,
+                                   "security.supply_chain.integrity": "none",
+                                   "security.supply_chain.malicious": has_exec,
+                               }):
+                pass
+
+            if has_exec:
+                result["warning"] = "MALICIOUS CODE DETECTED — would execute in production"
+                result["flag"] = "FLAG{SUPPLY_CH41N_PLU61N_RCE}"
+
+            return result
+
+        except Exception as e:
+            return {"status": "error", "message": f"Failed to load plugin: {e}",
+                    "plugin_url": plugin_url}
+
+
+@router.get("/api/shop/dependencies")
+async def shop_dependencies(request: Request):
+    """List application dependencies and their versions.
+
+    VULN (A03:2025): Exposes full dependency tree with exact versions,
+    enabling attackers to find known CVEs in pinned versions.
+    """
+    ip, ua = _get_client_info(request)
+
+    with security_span("supply_chain_recon", severity="medium",
+                       source_ip=ip, user_agent=ua,
+                       extra_attrs={"security.attack_type": "dependency_enumeration"}):
+        pass
+
+    # Simulated dependency list with intentionally outdated/vulnerable versions
+    return {
+        "status": "success",
+        "warning": "Dependency information should never be publicly accessible",
+        "dependencies": [
+            {"name": "fastapi", "version": "0.95.0", "cve": None},
+            {"name": "pyjwt", "version": "1.7.1", "cve": "CVE-2022-29217", "severity": "critical",
+             "description": "Algorithm confusion attack — accepts 'none' algorithm"},
+            {"name": "jinja2", "version": "2.11.3", "cve": "CVE-2024-22195", "severity": "high",
+             "description": "Sandbox escape via template injection"},
+            {"name": "pymssql", "version": "2.2.5", "cve": None},
+            {"name": "cryptography", "version": "3.4.7", "cve": "CVE-2023-38325", "severity": "medium",
+             "description": "PKCS7 padding oracle"},
+            {"name": "requests", "version": "2.25.1", "cve": "CVE-2023-32681", "severity": "medium",
+             "description": "Proxy-Authorization header leak on redirect"},
+            {"name": "lxml", "version": "4.6.3", "cve": "CVE-2021-43818", "severity": "high",
+             "description": "XXE and SSRF via XML parsing"},
+            {"name": "pillow", "version": "8.3.2", "cve": "CVE-2022-22817", "severity": "critical",
+             "description": "Arbitrary code execution via crafted image"},
+            {"name": "pickle5", "version": "0.0.12", "cve": "INHERENT", "severity": "critical",
+             "description": "Insecure deserialization — arbitrary code execution by design"},
+        ],
+        "flag": "FLAG{D3P3ND3NCY_3NUM3R4T10N}",
+    }
+
+
+# ── A10:2025 — Mishandling of Exceptional Conditions ─────────────
+
+@router.get("/api/shop/items/{item_id}/debug")
+async def shop_item_debug(request: Request, item_id: int):
+    """Debug endpoint that returns verbose error details.
+
+    VULN (A10:2025): Exposes stack traces, internal paths, DB connection
+    strings, and server state in error responses.  Unhandled exceptions
+    reveal implementation details useful for further exploitation.
+    """
+    ip, ua = _get_client_info(request)
+
+    with tracer.start_as_current_span("shop.item_debug", attributes={
+        "shop.item_id": item_id,
+        "shop.source_ip": ip,
+    }) as dbg_span:
+
+        # VULN: Intentionally verbose error for nonexistent items
+        item = next((i for i in SHOP_CATALOG if i["id"] == item_id), None)
+
+        if not item:
+            with security_span("error_disclosure", severity="medium",
+                               source_ip=ip, user_agent=ua,
+                               extra_attrs={"security.error_type": "verbose_stack_trace"}):
+                pass
+
+            # VULN: Leaks internal state, file paths, DB config, stack trace
+            return JSONResponse(status_code=500, content={
+                "status": "error",
+                "error": f"ItemNotFoundException: No item with id={item_id} in catalog",
+                "debug": {
+                    "stack_trace": [
+                        f"File \"/opt/observability/app/server/vulnerable_portal.py\", line {2640 + item_id}, in shop_item_debug",
+                        "    item = SHOP_CATALOG[item_id]",
+                        "IndexError: list index out of range",
+                    ],
+                    "server_info": {
+                        "python_version": "3.11.7",
+                        "fastapi_version": "0.95.0",
+                        "hostname": "seven-kingdoms-portal-vm",
+                        "pid": 1234,
+                        "working_dir": "/opt/observability/app",
+                    },
+                    "database_config": {
+                        "mssql_host": MSSQL_SERVERS.get("castelblack", {}).get("host", "192.168.56.22"),
+                        "mssql_port": 1433,
+                        "mssql_user": GOAD_MSSQL_USER,
+                        "mssql_password": "****" + GOAD_MSSQL_PASSWORD[-4:] if len(GOAD_MSSQL_PASSWORD) > 4 else "****",
+                        "mssql_db": "master",
+                    },
+                    "jwt_config": {
+                        "algorithm": JWT_ALGORITHM,
+                        "secret_length": len(JWT_SECRET),
+                        "secret_hint": JWT_SECRET[:4] + "..." + JWT_SECRET[-4:],
+                    },
+                    "catalog_size": len(SHOP_CATALOG),
+                    "environment_vars_leaked": {
+                        "PORTAL_JWT_SECRET": JWT_SECRET[:8] + "...",
+                        "OCI_AUTH_MODE": os.getenv("OCI_AUTH_MODE", "not_set"),
+                    },
+                },
+                "flag": "FLAG{V3RB0S3_3RR0R_D1SCLOSUR3}",
+            })
+
+        # Even for valid items, leak too much internal state
+        return {
+            "status": "success",
+            "item": item,
+            "internal_metadata": {
+                "memory_address": hex(id(item)),
+                "catalog_index": SHOP_CATALOG.index(item),
+                "seller_email": USERS_DB.get(item["seller"], {}).get("email", "unknown"),
+                "server_uptime_approx": f"{int(time.time()) % 86400}s since last restart",
+            },
+        }
+
+
+@router.post("/api/shop/bulk-purchase")
+async def shop_bulk_purchase(request: Request):
+    """Process a bulk purchase. Division-by-zero and integer overflow vulns.
+
+    VULN (A10:2025): Zero quantity causes unhandled ZeroDivisionError,
+    and very large quantities cause integer overflow in price calculation.
+    Error responses leak internal state.
+    """
+    ip, ua = _get_client_info(request)
+    body = await request.json()
+    items = body.get("items", [])
+    username = body.get("username", "guest")
+
+    with tracer.start_as_current_span("shop.bulk_purchase", attributes={
+        "shop.buyer": username,
+        "shop.item_count": len(items),
+        "shop.source_ip": ip,
+    }) as bulk_span:
+
+        results = []
+        total = 0
+
+        for entry in items:
+            item_id = entry.get("item_id", 0)
+            quantity = entry.get("quantity", 0)  # VULN: no validation
+
+            item = next((i for i in SHOP_CATALOG if i["id"] == item_id), None)
+            if not item:
+                results.append({"item_id": item_id, "error": "not found"})
+                continue
+
+            try:
+                # VULN: ZeroDivisionError when quantity=0 (used as divisor for discount calc)
+                per_unit = item["price"]
+                bulk_discount = per_unit // quantity  # Crashes on quantity=0
+                final_price = (per_unit - bulk_discount) * quantity
+
+                # VULN: Integer overflow with absurd quantities
+                total += final_price
+
+                results.append({
+                    "item_id": item_id,
+                    "name": item["name"],
+                    "quantity": quantity,
+                    "unit_price": per_unit,
+                    "bulk_discount": bulk_discount,
+                    "line_total": final_price,
+                })
+
+            except ZeroDivisionError:
+                with security_span("exception_handling", severity="medium",
+                                   source_ip=ip, user_agent=ua,
+                                   flag="FLAG{Z3R0_D1V_BYPASS}",
+                                   extra_attrs={"security.error_type": "zero_division",
+                                                "security.item_id": item_id}):
+                    pass
+
+                # VULN: Verbose error with internal details
+                return JSONResponse(status_code=500, content={
+                    "status": "error",
+                    "error": "ZeroDivisionError in bulk discount calculation",
+                    "detail": f"item_id={item_id}, name={item['name']}, quantity={quantity}",
+                    "hint": "Setting quantity=0 bypasses the price calculation entirely",
+                    "internal": {
+                        "function": "shop_bulk_purchase",
+                        "line": "bulk_discount = per_unit // quantity",
+                        "catalog_item_price": item["price"],
+                    },
+                    "flag": "FLAG{Z3R0_D1V_BYPASS}",
+                })
+
+            except OverflowError:
+                return JSONResponse(status_code=500, content={
+                    "status": "error",
+                    "error": f"OverflowError: quantity {quantity} causes integer overflow",
+                    "flag": "FLAG{1NT3G3R_0V3RFL0W}",
+                })
+
+        bulk_span.set_attribute("shop.total", total)
+
+        return {
+            "status": "success",
+            "buyer": username,
+            "items": results,
+            "total": total,
+            "order_id": f"BULK-{uuid.uuid4().hex[:8].upper()}",
+        }
+
+
 # ═══════════════════════════════════════════════════════════════════
 # VULNERABILITY CATALOG & CTF SCOREBOARD
 # ═══════════════════════════════════════════════════════════════════
