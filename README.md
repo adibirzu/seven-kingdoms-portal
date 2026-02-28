@@ -66,10 +66,12 @@ Expand any guide for the full attack flow — from understanding the target to d
 
 Seven Kingdoms Portal is a "GOAD-style" (Game of Active Directory) web application that provides:
 
-- **48 intentional vulnerabilities** across OWASP Top 10 categories (SQLi, XSS, SSRF, IDOR, RCE, SSTI, XXE, CSRF, price tampering, coupon forgery, prototype pollution, etc.)
+- **60+ intentional vulnerabilities** across OWASP Top 10 categories (SQLi, XSS, SSRF, IDOR, RCE, SSTI, XXE, CSRF, price tampering, coupon forgery, prototype pollution, etc.)
+- **Enhanced Marketplace** — Juice Shop-inspired e-commerce tab with 15+ exploitable business logic vulnerabilities
 - **32 attack entries** in the Attack Encyclopedia with educational walkthroughs
 - **30 detection rules** with pre-built APM + Log Analytics queries
-- **Full OpenTelemetry instrumentation** — every attack generates traces with security-specific span attributes
+- **Full OpenTelemetry instrumentation** — every attack generates traces with security-specific span attributes (`security.attack.*`, `app.runtime`, `app.service`)
+- **Runtime-aware APM** — service names distinguish deployments: `seven-kingdoms-portal-oke`, `seven-kingdoms-portal-vm`
 - **OCI Observability integration** — APM, Log Analytics, Monitoring, custom metrics
 - **Interactive attack runner** — trigger vulnerabilities from the UI and see them detected in real-time
 
@@ -103,12 +105,12 @@ User triggers attack (UI or API)
 
 | Category | Attacks | Examples |
 |----------|---------|----------|
-| A01: Broken Access Control | 3 | IDOR, Path Traversal, Open Redirect |
-| A02: Cryptographic Failures | 2 | Config Exposure, MD5 Hashes |
-| A03: Injection | 5 | SQLi, RCE, SSTI, LDAP Injection, Stored XSS |
-| A04: Insecure Design | 2 | Mass Assignment, Negative Transfer |
-| A05: Security Misconfiguration | 1 | Environment Variable Exposure |
-| A07: Auth Failures | 3 | JWT None, Default Credentials, Session Fixation |
+| A01: Broken Access Control | 6 | IDOR, Path Traversal, Open Redirect, Admin Panel, Privilege Escalation, CSRF Allegiance |
+| A02: Cryptographic Failures | 3 | Config Exposure, MD5 Hashes, Coupon Forgery (weak encoding) |
+| A03: Injection | 7 | SQLi, RCE, SSTI, LDAP Injection, Stored XSS, XXE, Prototype Pollution |
+| A04: Insecure Design | 5 | Mass Assignment, Negative Transfer, Negative Quantity, Price Tampering, Expired Coupon Reuse |
+| A05: Security Misconfiguration | 3 | Env Exposure, Score Board Discovery, Hidden Endpoints |
+| A07: Auth Failures | 5 | JWT None, Default Creds, Session Fixation, CAPTCHA Bypass, Security Question Bypass |
 | A08: Integrity Failures | 1 | Pickle Deserialization |
 | A09: Logging Failures | 2 | Silent Transfer, Log Injection |
 | A10: SSRF | 1 | Cloud IMDS Metadata Access |
@@ -123,6 +125,22 @@ User triggers attack (UI or API)
 - **Activity Feed**: Real-time log of all security events
 - **CTF Scoreboard**: Flag-based scoring across all vulnerability categories
 - **GOAD Integration**: Kerberoasting and DCSync attacks against Active Directory lab
+
+### Enhanced Marketplace (Shop Tab)
+Juice Shop-inspired e-commerce platform with 60 products across 7 houses and 15+ exploitable endpoints:
+- **Product Reviews**: Stored XSS and forged identity attacks
+- **Coupon System**: Weak base64 encoding, expired coupon reuse, forged discount codes
+- **Gold Wallet**: Negative transfers, IDOR between users, race conditions
+- **Trade Import**: XXE injection via XML payload parsing
+- **Allegiance Change**: CSRF — change a user's house without proper token validation
+- **Security Questions**: OSINT-based password reset bypass
+- **Admin Registration**: Hidden `role` parameter in registration endpoint
+- **CAPTCHA Bypass**: Predictable math challenges with `answer=0` bypass
+- **Score Board**: Hidden endpoint discovery (security through obscurity)
+- **Purchase System**: Negative quantity and price tampering attacks
+- **Prototype Pollution**: `__proto__` injection via config update endpoint
+- **Deleted Products**: Hidden inventory endpoint exposing removed items
+- **Admin Panel**: Unauthenticated admin access
 
 ### OCI Observability Overview
 - **Command Center**: Unified view of all OCI O&M services
@@ -210,10 +228,18 @@ Internet → WAF → Load Balancer (public subnet) → App VM (private subnet, p
 
 | Endpoint | Purpose |
 |----------|---------|
-| `/health` | Liveness probe — app vitality |
+| `/health` | Liveness probe — runtime, service name, APM status |
 | `/ready` | Readiness probe — dependency checks |
-| `/portal/` | Seven Kingdoms Portal UI |
+| `/portal/` | Seven Kingdoms Portal UI (Dashboard, Learn, Detections, Shop) |
 | `/portal/api/detection-rules` | Detection rules API |
+| `/portal/api/score-board` | CTF score board (hidden discovery challenge) |
+| `/portal/api/shop/reviews/{id}` | Product reviews — stored XSS, forged identity |
+| `/portal/api/shop/coupon/apply` | Coupon system — forgery, expired reuse |
+| `/portal/api/wallet/transfer` | Gold wallet — negative transfers, IDOR |
+| `/portal/api/trade/import` | Trade import — XXE injection |
+| `/portal/api/shop/purchase-enhanced` | Purchase — negative quantity, price tampering |
+| `/portal/api/config/update` | Config — prototype pollution |
+| `/portal/api/shop/admin-panel` | Admin panel — unauthenticated access |
 | `/vulnerable` | CTF platform — challenges, walkthroughs, scoreboard |
 | `/` | OCI Observability Overview dashboard |
 
@@ -225,9 +251,12 @@ See [`.env.local.example`](.env.local.example) for the full list. Key variables:
 |----------|---------|---------|
 | `APP_PORT` | Application port | `9010` |
 | `APP_WORKERS` | Uvicorn worker count | `4` |
+| `APP_RUNTIME` | Deployment runtime (`vm`, `oke`, `docker`) | `unknown` |
+| `APP_SERVICE_NAME` | Override APM service name | `seven-kingdoms-portal-{APP_RUNTIME}` |
 | `ENVIRONMENT` | Runtime environment | `development` |
 | `OCI_AUTH_MODE` | OCI SDK auth method | `instance_principal` |
-| `OCI_APM_ENDPOINT` | APM collector endpoint | — |
+| `OCI_APM_ENDPOINT` | APM domain base URL | — |
+| `OCI_APM_PRIVATE_DATAKEY` | APM private data key for OTLP auth | — |
 | `PORTAL_JWT_SECRET` | JWT signing secret | random |
 
 ## Detection Rules
