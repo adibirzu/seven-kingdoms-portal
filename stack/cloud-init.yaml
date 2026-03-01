@@ -103,4 +103,30 @@ runcmd:
 
   # --- Final status ---
   - su - opc -c "cd /opt/skp && python3 deploy.py --status" || true
+
+  # --- Print Portal URL (OKE mode: get LB IP from K8s service) ---
+  - |
+    if [ "${app_deploy_mode}" = "oke" ]; then
+      echo "=== Retrieving OKE Portal URL ==="
+      PORTAL_IP=$(su - opc -c "kubectl get svc observability-app -n observability-app -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null" || echo "")
+      if [ -n "$PORTAL_IP" ]; then
+        echo "=================================================="
+        echo "  PORTAL URL: http://$PORTAL_IP"
+        echo "  Health:     http://$PORTAL_IP/health"
+        echo "  Shop:       http://$PORTAL_IP/shop"
+        echo "  Portal:     http://$PORTAL_IP/portal/"
+        echo "=================================================="
+        # Persist to .env.local for future reference
+        grep -q "^APP_URL=" /opt/skp/.env.local 2>/dev/null && \
+          sed -i "s|^APP_URL=.*|APP_URL=http://$PORTAL_IP|" /opt/skp/.env.local || \
+          echo "APP_URL=http://$PORTAL_IP" >> /opt/skp/.env.local
+        grep -q "^APP_INSTANCE_IP=" /opt/skp/.env.local 2>/dev/null && \
+          sed -i "s|^APP_INSTANCE_IP=.*|APP_INSTANCE_IP=$PORTAL_IP|" /opt/skp/.env.local || \
+          echo "APP_INSTANCE_IP=$PORTAL_IP" >> /opt/skp/.env.local
+      else
+        echo "WARNING: OKE LoadBalancer IP not available yet."
+        echo "  Check later: kubectl get svc observability-app -n observability-app"
+      fi
+    fi
+
   - echo "=== Stack deployment complete ==="

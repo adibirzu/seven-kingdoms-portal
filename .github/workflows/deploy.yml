@@ -1,38 +1,55 @@
-name: Deploy to OCI VM
+name: Deploy Seven Kingdoms Portal
 
 on:
   push:
     branches: [ main ]
   workflow_dispatch:
+    inputs:
+      deploy_mode:
+        description: 'Deployment target'
+        required: true
+        default: 'both'
+        type: choice
+        options:
+          - vm
+          - oke
+          - both
 
 jobs:
-  deploy:
-    name: Deploy Application
+  # ── VM Deployment ──────────────────────────────────────────────
+  deploy-vm:
+    name: Deploy to VM
     runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'push' ||
+      github.event.inputs.deploy_mode == 'vm' ||
+      github.event.inputs.deploy_mode == 'both'
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Validate Secrets
+      - name: Validate VM Secrets
         run: |
           missing=""
           [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ] && missing="${missing} SSH_PRIVATE_KEY"
           [ -z "${{ secrets.BASTION_IP }}" ] && missing="${missing} BASTION_IP"
           [ -z "${{ secrets.INSTANCE_IP }}" ] && missing="${missing} INSTANCE_IP"
           if [ -n "$missing" ]; then
-            echo "::error::Missing required secrets:${missing}"
-            echo "Go to Settings > Secrets and variables > Actions to configure them."
-            exit 1
+            echo "::warning::Missing VM secrets:${missing} — skipping VM deployment"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
+        id: validate
 
       - name: Setup SSH
+        if: steps.validate.outputs.skip != 'true'
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/new_id_rsa
           chmod 600 ~/.ssh/new_id_rsa
           ssh-keyscan -H ${{ secrets.BASTION_IP }} >> ~/.ssh/known_hosts 2>/dev/null
 
-      - name: Run Deployment Script
+      - name: Deploy to VM
+        if: steps.validate.outputs.skip != 'true'
         env:
           SSH_KEY: /home/runner/.ssh/new_id_rsa
           INSTANCE_IP: ${{ secrets.INSTANCE_IP }}
@@ -41,3 +58,126 @@ jobs:
         run: |
           chmod +x deploy/scripts/update-app-code.sh
           ./deploy/scripts/update-app-code.sh
+
+  # ── OKE Deployment ─────────────────────────────────────────────
+  deploy-oke:
+    name: Deploy to OKE
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'push' ||
+      github.event.inputs.deploy_mode == 'oke' ||
+      github.event.inputs.deploy_mode == 'both'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Validate OKE Secrets
+        id: validate-oke
+        run: |
+          missing=""
+          [ -z "${{ secrets.OCI_REGION }}" ] && missing="${missing} OCI_REGION"
+          [ -z "${{ secrets.OCI_NAMESPACE }}" ] && missing="${missing} OCI_NAMESPACE"
+          [ -z "${{ secrets.OKE_CLUSTER_ID }}" ] && missing="${missing} OKE_CLUSTER_ID"
+          [ -z "${{ secrets.OCI_AUTH_TOKEN }}" ] && missing="${missing} OCI_AUTH_TOKEN"
+          [ -z "${{ secrets.OCI_TENANCY_OCID }}" ] && missing="${missing} OCI_TENANCY_OCID"
+          [ -z "${{ secrets.OCI_USER_OCID }}" ] && missing="${missing} OCI_USER_OCID"
+          [ -z "${{ secrets.OCI_FINGERPRINT }}" ] && missing="${missing} OCI_FINGERPRINT"
+          [ -z "${{ secrets.OCI_PRIVATE_KEY }}" ] && missing="${missing} OCI_PRIVATE_KEY"
+          if [ -n "$missing" ]; then
+            echo "::warning::Missing OKE secrets:${missing} — skipping OKE deployment"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install OCI CLI
+        if: steps.validate-oke.outputs.skip != 'true'
+        run: |
+          curl -L https://raw.githubusercontent.com/oracle/oci-cli/master/scripts/install/install.sh | bash -s -- --accept-all-defaults
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+
+      - name: Configure OCI CLI
+        if: steps.validate-oke.outputs.skip != 'true'
+        run: |
+          mkdir -p ~/.oci
+          cat > ~/.oci/config << EOF
+          [DEFAULT]
+          user=${{ secrets.OCI_USER_OCID }}
+          fingerprint=${{ secrets.OCI_FINGERPRINT }}
+          tenancy=${{ secrets.OCI_TENANCY_OCID }}
+          region=${{ secrets.OCI_REGION }}
+          key_file=~/.oci/oci_api_key.pem
+          EOF
+          echo "${{ secrets.OCI_PRIVATE_KEY }}" > ~/.oci/oci_api_key.pem
+          chmod 600 ~/.oci/oci_api_key.pem ~/.oci/config
+
+      - name: Configure kubeconfig
+        if: steps.validate-oke.outputs.skip != 'true'
+        run: |
+          mkdir -p ~/.kube
+          ~/bin/oci ce cluster create-kubeconfig \
+            --cluster-id "${{ secrets.OKE_CLUSTER_ID }}" \
+            --file ~/.kube/config \
+            --region "${{ secrets.OCI_REGION }}" \
+            --token-version 2.0.0 \
+            --kube-endpoint PUBLIC_ENDPOINT
+
+      - name: Login to OCIR
+        if: steps.validate-oke.outputs.skip != 'true'
+        run: |
+          OCIR_HOST="${{ secrets.OCI_REGION }}.ocir.io"
+          echo "${{ secrets.OCI_AUTH_TOKEN }}" | docker login "$OCIR_HOST" \
+            --username "${{ secrets.OCI_NAMESPACE }}/oracleidentitycloudservice/${{ secrets.OCIR_USERNAME }}" \
+            --password-stdin
+
+      - name: Build and Push Docker Image
+        if: steps.validate-oke.outputs.skip != 'true'
+        run: |
+          IMAGE="${{ secrets.OCI_REGION }}.ocir.io/${{ secrets.OCI_NAMESPACE }}/seven-kingdoms-portal:${GITHUB_SHA::8}"
+          IMAGE_LATEST="${{ secrets.OCI_REGION }}.ocir.io/${{ secrets.OCI_NAMESPACE }}/seven-kingdoms-portal:latest"
+
+          docker build -f deploy/docker/Dockerfile -t "$IMAGE" -t "$IMAGE_LATEST" .
+          docker push "$IMAGE"
+          docker push "$IMAGE_LATEST"
+
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+        id: build
+
+      - name: Deploy to OKE
+        if: steps.validate-oke.outputs.skip != 'true'
+        run: |
+          IMAGE="${{ steps.build.outputs.image }}"
+          NAMESPACE="observability-app"
+
+          # Update image in kustomize overlay
+          cd deploy/kubernetes/overlays/prod
+          if command -v kustomize &>/dev/null; then
+            kustomize edit set image "observability-app=$IMAGE"
+          fi
+
+          # Apply manifests
+          kubectl apply -k .
+
+          # Set image directly to ensure correct version
+          kubectl set image deployment/observability-app \
+            app="$IMAGE" -n "$NAMESPACE"
+
+          # Wait for rollout
+          echo "Waiting for rollout..."
+          kubectl rollout status deployment/observability-app \
+            -n "$NAMESPACE" --timeout=300s
+
+          # Get LoadBalancer IP
+          echo "Waiting for LoadBalancer IP..."
+          for i in $(seq 1 30); do
+            LB_IP=$(kubectl get svc observability-app -n "$NAMESPACE" \
+              -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
+            if [ -n "$LB_IP" ]; then
+              echo "OKE Portal URL: http://$LB_IP"
+              echo "OKE Health: http://$LB_IP/health"
+              break
+            fi
+            sleep 10
+          done
+
+          if [ -z "$LB_IP" ]; then
+            echo "::warning::LoadBalancer IP not available yet. Check: kubectl get svc -n $NAMESPACE"
+          fi
