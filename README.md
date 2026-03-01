@@ -13,7 +13,7 @@ A deliberately vulnerable web application themed around Game of Thrones, designe
 ## Screenshots
 
 ### Dashboard
-The Kingdom Overview shows real-time stats: 30 vulnerabilities, 10 OWASP categories, 3 GOAD domains. The Quick Attack Panel lets you trigger critical attacks (SQLi, RCE, SSRF, Path Traversal, JWT bypass, Crypto leak) with one click.
+The Kingdom Overview shows real-time stats: 33 vulnerability types, 9 OWASP categories, 3 GOAD domains. The Quick Attack Panel lets you trigger critical attacks (SQLi, RCE, SSRF, Path Traversal, JWT bypass, Crypto leak) with one click.
 
 ![Dashboard](docs/screenshots/02-dashboard.png)
 
@@ -31,7 +31,7 @@ Each attack includes side-by-side detection queries for OCI APM Trace Explorer a
 ![Detection Queries](docs/screenshots/10-learn-detection-queries.png)
 
 ### Detection Rules
-Browse all 20 detection rules with severity badges, MITRE technique IDs, OWASP categories, and one-click query copying:
+Browse all 38 detection rules with severity badges, MITRE technique IDs, OWASP categories, and one-click query copying:
 
 ![Detections](docs/screenshots/11-detections.png)
 
@@ -54,7 +54,7 @@ Click any challenge to fire the attack — the response panel shows HTTP status,
 ![Challenge Response](docs/screenshots/ctf-03-response.png)
 
 ### Enhanced Marketplace (Shop)
-60 products across 9 categories (Weapons, Horses, Ships, Citadels, Potions, Scrolls, Mercenaries, GOAD Loot) with Midjourney-generated product images, star ratings, house affiliations, and 15+ exploitable endpoints.
+60 products across 9 categories (Weapons, Horses, Ships, Citadels, Potions, Scrolls, Mercenaries, GOAD Loot) with Midjourney-generated product images, star ratings, house affiliations, and 19 exploitable endpoints.
 
 ![Shop Overview](docs/screenshots/shop-01-overview.png)
 
@@ -80,10 +80,10 @@ Expand any guide for the full attack flow — from understanding the target to d
 
 Seven Kingdoms Portal is a "GOAD-style" (Game of Active Directory) web application that provides:
 
-- **60+ intentional vulnerabilities** across OWASP Top 10 categories (SQLi, XSS, SSRF, IDOR, RCE, SSTI, XXE, CSRF, price tampering, coupon forgery, prototype pollution, etc.)
-- **Enhanced Marketplace** — Juice Shop-inspired e-commerce tab with 15+ exploitable business logic vulnerabilities
-- **32 attack entries** in the Attack Encyclopedia with educational walkthroughs
-- **30 detection rules** with pre-built APM + Log Analytics queries
+- **98 API endpoints** across 3 server modules with **33 unique vulnerability types** spanning all OWASP Top 10 categories (SQLi, NoSQL injection, XSS, SSRF, IDOR, RCE, SSTI, XXE, CSRF, CRLF injection, web shell upload, price tampering, coupon forgery, prototype pollution, etc.)
+- **Enhanced Marketplace** — Juice Shop-inspired e-commerce tab with 19 exploitable business logic endpoints
+- **33 attack types** in the Attack Encyclopedia with educational walkthroughs
+- **38 detection rules** (SKP-001 to SKP-038) with pre-built APM + Log Analytics queries, covering 25 MITRE ATT&CK techniques across 12 tactics
 - **Full OpenTelemetry instrumentation** — every attack generates traces with security-specific span attributes (`security.attack.*`, `app.runtime`, `app.service`)
 - **Runtime-aware APM** — service names distinguish deployments: `seven-kingdoms-portal-oke`, `seven-kingdoms-portal-vm`
 - **OCI Observability integration** — APM, Log Analytics, Monitoring, custom metrics
@@ -101,6 +101,31 @@ User triggers attack (UI or API)
   → Alert fires in OCI Monitoring
 ```
 
+### Log Pipeline Architecture
+```
+                    ┌─────────────────────────────────────────┐
+                    │         OCI Observability Stack          │
+                    │                                         │
+Portal Attack ──→ OTel Span ──→ OCI APM ──→ Trace Explorer   │
+     │                │              │                        │
+     │                ▼              ▼                        │
+     │         Span Attributes   APM Saved Searches (38)     │
+     │         security.attack.* security.source_ip          │
+     │                              │                        │
+     └──→ OCI Logging ─────────→ Log Analytics ──→ Alarms   │
+              │                     │                        │
+              ▼                     ▼                        │
+         trace_id/span_id    LA Detection Rules              │
+         correlation         (OCL queries)                   │
+                    └─────────────────────────────────────────┘
+```
+
+Each attack generates:
+- **OTel Span** with `security.attack.type`, `security.attack.severity`, `security.attack.payload`, `security.source_ip`
+- **APM Trace** routed to OCI APM via OTLP endpoint with `dataKey` authentication
+- **Application Log** with `trace_id`/`span_id` correlation pushed to OCI Logging
+- **LA Saved Search** matching the span attributes for dashboard widgets and alarms
+
 ### Example: SQL Injection (A03)
 
 1. **Attack**: User sends `' UNION SELECT username, password FROM users--` to the treasury search
@@ -117,31 +142,33 @@ User triggers attack (UI or API)
 
 ## OWASP Categories Covered
 
-| Category | Attacks | Examples |
-|----------|---------|----------|
-| A01: Broken Access Control | 6 | IDOR, Path Traversal, Open Redirect, Admin Panel, Privilege Escalation, CSRF Allegiance |
-| A02: Cryptographic Failures | 3 | Config Exposure, MD5 Hashes, Coupon Forgery (weak encoding) |
-| A03: Injection | 7 | SQLi, RCE, SSTI, LDAP Injection, Stored XSS, XXE, Prototype Pollution |
-| A04: Insecure Design | 5 | Mass Assignment, Negative Transfer, Negative Quantity, Price Tampering, Expired Coupon Reuse |
-| A05: Security Misconfiguration | 3 | Env Exposure, Score Board Discovery, Hidden Endpoints |
-| A07: Auth Failures | 5 | JWT None, Default Creds, Session Fixation, CAPTCHA Bypass, Security Question Bypass |
+| Category | Rules | Examples |
+|----------|-------|----------|
+| A01: Broken Access Control | 5 | IDOR, Path Traversal, Open Redirect, CSRF Allegiance, Forged Identity |
+| A02: Cryptographic Failures | 3 | Config Exposure, Credential Leak, Coupon Forgery (weak encoding) |
+| A03: Injection | 8 | SQLi, NoSQL Injection, RCE, SSTI, LDAP Injection, Stored XSS, Prototype Pollution, CRLF Header Injection |
+| A04: Insecure Design | 5 | Mass Assignment, Negative Quantity, Price Tampering, Privilege Escalation, Insecure File Upload |
+| A05: Security Misconfiguration | 2 | Debug Endpoint Exposure, XXE |
+| A07: Auth Failures | 5 | JWT None Algorithm, Default Creds, Brute Force, CAPTCHA Bypass, Security Question Bypass |
 | A08: Integrity Failures | 1 | Pickle Deserialization |
-| A09: Logging Failures | 2 | Silent Transfer, Log Injection |
+| A09: Logging Failures | 1 | Log Injection / Log Forging |
 | A10: SSRF | 1 | Cloud IMDS Metadata Access |
 | GOAD (AD Attacks) | 2 | Kerberoasting, DCSync |
+| Red Team / Caldera | 5 | C2 Exfiltration, Data Collection, Internal Recon, Service Persistence, Credential Exposure |
+| Meta / Aggregate | 1 | Multi-Stage Attack Chain Detection |
 
 ## Features
 
 ### Security / CTF
 - **Attack Encyclopedia**: Educational walkthrough for every vulnerability with step-by-step exploitation, OTel attributes, and detection queries
-- **Detection Rules Tab**: Browse all 20 detection rules with copy-to-clipboard APM/LA queries
-- **Attack Runner**: Execute all 30 attacks sequentially to generate APM traces
+- **Detection Rules Tab**: Browse all 38 detection rules with copy-to-clipboard APM/LA queries
+- **Attack Runner**: Execute all 38 attacks sequentially to generate APM traces
 - **Activity Feed**: Real-time log of all security events
 - **CTF Scoreboard**: Flag-based scoring across all vulnerability categories
 - **GOAD Integration**: Kerberoasting and DCSync attacks against Active Directory lab
 
 ### Enhanced Marketplace (Shop Tab)
-Juice Shop-inspired e-commerce platform with 60 products across 7 houses and 15+ exploitable endpoints:
+Juice Shop-inspired e-commerce platform with 60 products across 7 houses and 19 exploitable endpoints:
 - **Product Reviews**: Stored XSS and forged identity attacks
 - **Coupon System**: Weak base64 encoding, expired coupon reuse, forged discount codes
 - **Gold Wallet**: Negative transfers, IDOR between users, race conditions
@@ -238,14 +265,24 @@ Internet → WAF → Load Balancer (public subnet) → App VM (private subnet, p
                   Bastion (public subnet) ──SSH──► App VM (port 22)
 ```
 
+### Server Modules (98 endpoints total)
+
+| Module | File | Endpoints | Purpose |
+|--------|------|-----------|---------|
+| Core | `server/main.py` | 30 | Health, UX scenarios, red-team/Caldera attack endpoints, new vuln endpoints |
+| Portal | `server/vulnerable_portal.py` | 49 | Auth, attacks, CTF, GOAD integration, shop, detection rules |
+| Shop | `server/shop_enhanced.py` | 19 | Juice Shop-inspired marketplace exploits |
+
 ## Endpoints
+
+**Key Vulnerability Endpoints:**
 
 | Endpoint | Purpose |
 |----------|---------|
 | `/health` | Liveness probe — runtime, service name, APM status |
 | `/ready` | Readiness probe — dependency checks |
 | `/portal/` | Seven Kingdoms Portal UI (Dashboard, Learn, Detections, Shop) |
-| `/portal/api/detection-rules` | Detection rules API |
+| `/portal/api/detection-rules` | Detection rules API (38 rules) |
 | `/portal/api/score-board` | CTF score board (hidden discovery challenge) |
 | `/portal/api/shop/reviews/{id}` | Product reviews — stored XSS, forged identity |
 | `/portal/api/shop/coupon/apply` | Coupon system — forgery, expired reuse |
@@ -254,6 +291,11 @@ Internet → WAF → Load Balancer (public subnet) → App VM (private subnet, p
 | `/portal/api/shop/purchase-enhanced` | Purchase — negative quantity, price tampering |
 | `/portal/api/config/update` | Config — prototype pollution |
 | `/portal/api/shop/admin-panel` | Admin panel — unauthenticated access |
+| `/api/v1/upload/avatar` | File upload — web shell detection (SKP-036) |
+| `/api/v1/nosql/search` | NoSQL injection — MongoDB operator injection (SKP-037) |
+| `/api/v1/redirect` | HTTP header injection — CRLF response splitting (SKP-038) |
+| `/api/v1/exfiltration/upload` | C2 exfiltration — data upload (SKP-031) |
+| `/api/v1/network/proxy` | Internal recon — SSRF probe (SKP-033) |
 | `/vulnerable` | CTF platform — challenges, walkthroughs, scoreboard |
 | `/` | OCI Observability Overview dashboard |
 
@@ -275,18 +317,48 @@ See [`.env.local.example`](.env.local.example) for the full list. Key variables:
 
 ## Detection Rules
 
-All 20 rules map to MITRE ATT&CK techniques and OWASP Top 10 categories:
+All 38 rules map to MITRE ATT&CK techniques and OWASP Top 10 categories (20 critical, 15 high, 3 medium):
 
 | ID | Attack | Severity | MITRE | OWASP |
 |----|--------|----------|-------|-------|
-| SKP-001 | IDOR | High | T1078 | A01:2021 |
-| SKP-002 | Path Traversal | Critical | T1083 | A01:2021 |
-| SKP-005 | SQL Injection | Critical | T1190 | A03:2021 |
-| SKP-006 | Command Injection | Critical | T1059 | A03:2021 |
-| SKP-009 | Stored XSS | High | T1059.007 | A03:2021 |
-| SKP-017 | SSRF | Critical | T1090 | A10:2021 |
-| SKP-018 | Kerberoasting | Critical | T1558.003 | N/A |
-| ... | [+13 more](server/detection_rules.py) | | | |
+| SKP-001 | IDOR — Unauthorized Profile Access | High | T1078 | A01:2021 |
+| SKP-002 | Path Traversal — Directory Escape | Critical | T1083 | A01:2021 |
+| SKP-003 | Open Redirect — URL Manipulation | Medium | T1566.002 | A01:2021 |
+| SKP-004 | Credential Exposure — Debug Endpoint | Critical | T1552 | A02:2021 |
+| SKP-005 | SQL Injection — Treasury Query | Critical | T1190 | A03:2021 |
+| SKP-006 | Command Injection — OS Command Exec | Critical | T1059 | A03:2021 |
+| SKP-007 | SSTI — Template Injection | Critical | T1059 | A03:2021 |
+| SKP-008 | LDAP Injection — Directory Query | High | T1190 | A03:2021 |
+| SKP-009 | Stored XSS — Message Injection | High | T1059.007 | A03:2021 |
+| SKP-010 | Mass Assignment — Privilege Escalation | High | T1098 | A04:2021 |
+| SKP-011 | Security Misconfiguration — Crypto Disclosure | High | T1552 | A05:2021 |
+| SKP-012 | Default Credentials — Admin Login | Critical | T1078 | A07:2021 |
+| SKP-013 | Brute Force — Failed Login Attempts | High | T1110 | A07:2021 |
+| SKP-014 | JWT None Algorithm — Signature Bypass | Critical | T1134 | A07:2021 |
+| SKP-015 | Insecure Deserialization — Pickle Import | Critical | T1059 | A08:2021 |
+| SKP-016 | Log Injection — Log Forging | Medium | T1070 | A09:2021 |
+| SKP-017 | SSRF — Internal Network Scanning | Critical | T1090 | A10:2021 |
+| SKP-018 | Kerberoasting — SPN Ticket Extraction | Critical | T1558.003 | N/A |
+| SKP-019 | DCSync — Domain Replication Attack | Critical | T1003.006 | N/A |
+| SKP-020 | Multi-Stage Attack Chain | Critical | T1190 | N/A |
+| SKP-021 | Forged Identity — Fake Review Author | High | T1078 | A01:2021 |
+| SKP-022 | Coupon Forgery — Weak Encoding | High | T1565 | A02:2021 |
+| SKP-023 | Negative Quantity — Reverse Purchase | High | T1565.002 | A04:2021 |
+| SKP-024 | Price Tampering — Client-Side Override | High | T1565.002 | A04:2021 |
+| SKP-025 | XXE — XML External Entity | Critical | T1190 | A05:2021 |
+| SKP-026 | CSRF — Allegiance Change | High | T1185 | A01:2021 |
+| SKP-027 | Security Question Bypass — OSINT Reset | High | T1110.001 | A07:2021 |
+| SKP-028 | Privilege Escalation — Hidden Role | Critical | T1068 | A04:2021 |
+| SKP-029 | CAPTCHA Bypass — Anti-Automation Defeated | Medium | T1185 | A07:2021 |
+| SKP-030 | Prototype Pollution — Config Deep Merge | Critical | T1059 | A03:2021 |
+| SKP-031 | C2 Exfiltration — Data Upload | Critical | T1041 | N/A |
+| SKP-032 | Data Collection — File Aggregation | High | T1560 | N/A |
+| SKP-033 | Internal Recon — SSRF Probe | High | T1046 | N/A |
+| SKP-034 | Service Persistence — Malicious Service | Critical | T1543 | N/A |
+| SKP-035 | Credential Exposure — Config Endpoint | Critical | T1552 | A02:2021 |
+| SKP-036 | Insecure File Upload — Web Shell | Critical | T1105 | A04:2021 |
+| SKP-037 | NoSQL Injection — Operator Injection | Critical | T1190 | A03:2021 |
+| SKP-038 | HTTP Header Injection — CRLF Splitting | High | T1071 | A03:2021 |
 
 ## Re-generating Screenshots
 
