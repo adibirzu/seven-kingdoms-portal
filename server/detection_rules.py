@@ -823,6 +823,117 @@ DETECTION_RULES: list[dict] = [
         ),
         "portal_endpoints": ["/api/v1/redirect"],
     },
+    # ── GOAD ADCS Attack Simulations ──────────────────────────────
+    {
+        "id": "SKP-039",
+        "name": "ADCS Enumeration — Vulnerable Template Discovery",
+        "severity": "high",
+        "mitre_id": "T1649",
+        "mitre_tactic": "credential-access",
+        "owasp": "N/A",
+        "attack_type": "adcs_enumerate",
+        "description": "Certipy or Certify enumeration detected vulnerable certificate templates in ADCS environment.",
+        "apm_query": (
+            "show (spans) SpanName as Name, "
+            "SpanAttribute['security.adcs.vulnerable_templates'] as VulnTemplates, "
+            "SpanAttribute['security.adcs.ca_name'] as CAName "
+            "where SpanName like 'ATTACK:ADCS_ENUMERATE%'"
+        ),
+        "la_query": (
+            "'Log Source' = 'OCI APM Trace' "
+            "| where SpanName like '%ADCS_ENUMERATE%' "
+            "| stats count by security_source_ip, security_adcs_ca_name"
+        ),
+        "portal_endpoints": ["/portal/api/goad/adcs/enumerate"],
+    },
+    {
+        "id": "SKP-040",
+        "name": "ADCS ESC1 — Certificate SAN Impersonation",
+        "severity": "critical",
+        "mitre_id": "T1649",
+        "mitre_tactic": "credential-access",
+        "owasp": "N/A",
+        "attack_type": "adcs_esc1",
+        "description": "Certificate requested with enrollee-supplied Subject Alternative Name, enabling impersonation of any domain user.",
+        "apm_query": (
+            "show (spans) SpanName as Name, "
+            "SpanAttribute['security.adcs.template'] as Template, "
+            "SpanAttribute['security.adcs.requested_san'] as RequestedSAN "
+            "where SpanName like 'ATTACK:ADCS_ESC1%'"
+        ),
+        "la_query": (
+            "'Log Source' = 'OCI APM Trace' "
+            "| where SpanName like '%ADCS_ESC1%' "
+            "| stats count by security_source_ip, security_adcs_requested_san"
+        ),
+        "portal_endpoints": ["/portal/api/goad/adcs/request"],
+    },
+    {
+        "id": "SKP-041",
+        "name": "ADCS ESC4 — Template ACL Modification",
+        "severity": "critical",
+        "mitre_id": "T1484.002",
+        "mitre_tactic": "defense-evasion",
+        "owasp": "N/A",
+        "attack_type": "adcs_esc4",
+        "description": "Certificate template ACLs modified to allow enrollee-supplies-subject, enabling privilege escalation.",
+        "apm_query": (
+            "show (spans) SpanName as Name, "
+            "SpanAttribute['security.adcs.template_modified'] as Template, "
+            "SpanAttribute['security.adcs.acl_change'] as ACLChange "
+            "where SpanName like 'ATTACK:ADCS_ESC4%'"
+        ),
+        "la_query": (
+            "'Log Source' = 'OCI APM Trace' "
+            "| where SpanName like '%ADCS_ESC4%' "
+            "| stats count by security_source_ip, security_adcs_template_modified"
+        ),
+        "portal_endpoints": ["/portal/api/goad/adcs/template-modify"],
+    },
+    {
+        "id": "SKP-042",
+        "name": "ADCS ESC8 — NTLM Relay to Certificate Enrollment",
+        "severity": "critical",
+        "mitre_id": "T1557.001",
+        "mitre_tactic": "credential-access",
+        "owasp": "N/A",
+        "attack_type": "adcs_esc8",
+        "description": "NTLM authentication relayed to ADCS HTTP enrollment endpoint to obtain certificate as victim.",
+        "apm_query": (
+            "show (spans) SpanName as Name, "
+            "SpanAttribute['security.adcs.relay_target'] as RelayTarget, "
+            "SpanAttribute['security.adcs.relay_source'] as RelaySource "
+            "where SpanName like 'ATTACK:ADCS_ESC8%'"
+        ),
+        "la_query": (
+            "'Log Source' = 'OCI APM Trace' "
+            "| where SpanName like '%ADCS_ESC8%' "
+            "| stats count by security_source_ip, security_adcs_relay_target"
+        ),
+        "portal_endpoints": ["/portal/api/goad/adcs/relay"],
+    },
+    {
+        "id": "SKP-043",
+        "name": "ADCS ESC6/7 — CA Configuration Exploitation",
+        "severity": "critical",
+        "mitre_id": "T1098",
+        "mitre_tactic": "persistence",
+        "owasp": "N/A",
+        "attack_type": "adcs_ca_exploit",
+        "description": "CA server misconfiguration exploited — EDITF_ATTRIBUTESUBJECTALTNAME2 flag enables arbitrary SAN in any template.",
+        "apm_query": (
+            "show (spans) SpanName as Name, "
+            "SpanAttribute['security.adcs.ca_flags'] as CAFlags, "
+            "SpanAttribute['security.adcs.editf_flag'] as EditfFlag "
+            "where SpanName like 'ATTACK:ADCS_CA_EXPLOIT%'"
+        ),
+        "la_query": (
+            "'Log Source' = 'OCI APM Trace' "
+            "| where SpanName like '%ADCS_CA_EXPLOIT%' "
+            "| stats count by security_source_ip, security_adcs_editf_flag"
+        ),
+        "portal_endpoints": ["/portal/api/goad/adcs/ca-config"],
+    },
     # ── Meta / Aggregate Rules ────────────────────────────────────
     {
         "id": "SKP-020",

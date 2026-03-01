@@ -686,6 +686,7 @@
           <div class="card-badges">
             <span class="badge badge-goad">GOAD</span>
             <span class="badge badge-otel">T1558</span>
+            <span class="badge badge-otel">T1649</span>
           </div>
         </div>
 
@@ -714,6 +715,69 @@
               <input name="url" type="text" placeholder="http://meereen.essos.local/api/dragon_locations" value="http://meereen.essos.local/api/dragon_locations">
             </div>
             <button type="submit" class="form-btn">Fetch Data</button>
+          </form>
+
+          <div class="module-divider"></div>
+
+          <form class="lab-form" data-url="/portal/api/goad/adcs/enumerate" data-method="GET">
+            <h4 class="form-section-title">ADCS Enumerate</h4>
+            <button type="submit" class="form-btn">Find Vulnerable Templates</button>
+          </form>
+
+          <div class="module-divider"></div>
+
+          <form class="lab-form" data-url="/portal/api/goad/adcs/request" data-method="POST" data-content="json">
+            <h4 class="form-section-title">ESC1 — Cert Request</h4>
+            <div class="form-group">
+              <label>Template</label>
+              <input name="template" type="text" placeholder="VulnerableTemplate" value="VulnerableTemplate">
+            </div>
+            <div class="form-group">
+              <label>UPN (impersonate)</label>
+              <input name="upn" type="text" placeholder="administrator@sevenkingdoms.local" value="administrator@sevenkingdoms.local">
+            </div>
+            <button type="submit" class="form-btn">Request Certificate</button>
+          </form>
+
+          <div class="module-divider"></div>
+
+          <form class="lab-form" data-url="/portal/api/goad/adcs/relay" data-method="POST" data-content="json">
+            <h4 class="form-section-title">ESC8 — NTLM Relay</h4>
+            <div class="form-group">
+              <label>Target CA</label>
+              <input name="target_ca" type="text" placeholder="sevenkingdoms-YOURDC01-CA" value="sevenkingdoms-YOURDC01-CA">
+            </div>
+            <div class="form-group">
+              <label>Relay From</label>
+              <input name="relay_from" type="text" placeholder="winterfell.north.sevenkingdoms.local" value="winterfell.north.sevenkingdoms.local">
+            </div>
+            <button type="submit" class="form-btn">Relay Authentication</button>
+          </form>
+
+          <div class="module-divider"></div>
+
+          <form class="lab-form" data-url="/portal/api/goad/adcs/template-modify" data-method="POST" data-content="json">
+            <h4 class="form-section-title">ESC4 — Template Modify</h4>
+            <div class="form-group">
+              <label>Template</label>
+              <input name="template" type="text" placeholder="SubCA" value="SubCA">
+            </div>
+            <div class="form-group">
+              <label>Action</label>
+              <input name="action" type="text" placeholder="add_enrollee_supplies_subject" value="add_enrollee_supplies_subject">
+            </div>
+            <button type="submit" class="form-btn">Modify Template ACL</button>
+          </form>
+
+          <div class="module-divider"></div>
+
+          <form class="lab-form" data-url-template="/portal/api/goad/adcs/ca-config?ca_name={ca_name}" data-method="GET">
+            <h4 class="form-section-title">ESC6/7 — CA Config</h4>
+            <div class="form-group">
+              <label>CA Name</label>
+              <input name="ca_name" type="text" placeholder="sevenkingdoms-YOURDC01-CA" value="sevenkingdoms-YOURDC01-CA">
+            </div>
+            <button type="submit" class="form-btn">Dump CA Config</button>
           </form>
         </div>
       </div>
@@ -1250,7 +1314,7 @@ curl -s -X POST http://TARGET/portal/api/shop/bulk-purchase \
           <div class="guide-step-num">7</div>
           <div class="guide-step-content">
             <h4>GOAD Integration</h4>
-            <p>If GOAD Active Directory is reachable, test SQL injection against Castle Black MSSQL. Try LDAP auth against the three domain controllers. The shop search and order history endpoints connect to GOAD MSSQL for real database exploitation.</p>
+            <p>If GOAD Active Directory is reachable, test SQL injection against Castle Black MSSQL. Try LDAP auth against the three domain controllers. The shop search and order history endpoints connect to GOAD MSSQL for real database exploitation. Use the ADCS forms to enumerate vulnerable certificate templates (ESC1, ESC4, ESC6-8) and simulate certificate-based privilege escalation.</p>
           </div>
         </div>
       </div>
@@ -1903,8 +1967,8 @@ curl -s -X POST http://TARGET/portal/api/shop/bulk-purchase \
       hints: ["Craft a JWT with algorithm set to 'none'", "The admin panel requires role=superadmin", "Debug endpoints often leak crypto keys and environment variables"]
     },
     "mod-goad": {
-      difficulty: 5, objectives: ["Simulate Active Directory attacks", "Understand Kerberoasting and DCSync", "Query MSSQL databases via GOAD integration"],
-      hints: ["Kerberoasting extracts service tickets for offline cracking", "DCSync replicates domain controller data", "GOAD databases may accept injection in query parameters"]
+      difficulty: 5, objectives: ["Simulate Active Directory attacks", "Understand Kerberoasting and DCSync", "Exploit ADCS misconfigurations (ESC1, ESC4, ESC6-8)", "Query MSSQL databases via GOAD integration"],
+      hints: ["Kerberoasting extracts service tickets for offline cracking", "DCSync replicates domain controller data", "GOAD databases may accept injection in query parameters", "ADCS ESC1: enrollee-supplies-subject lets you impersonate any user via SAN", "ESC8 relays NTLM to the CA HTTP enrollment endpoint", "ESC4: if you can write the template ACL, you own it", "CA config with EDITF_ATTRIBUTESUBJECTALTNAME2 = game over (ESC6)"]
     },
     "mod-import": {
       difficulty: 3, objectives: ["Exploit insecure deserialization (Pickle)", "Discover prototype pollution via JSON imports"],

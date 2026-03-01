@@ -241,6 +241,36 @@ FLAG_REGISTRY = {
         "module": "GOAD AD",
         "description": "DCSync replication attack simulation",
     },
+    "adcs_enumerate": {
+        "flag": "FLAG{4DC5_VULN_T3MPL4T35}",
+        "difficulty": 3, "points": 300, "category": "goad",
+        "module": "GOAD AD",
+        "description": "ADCS vulnerable template enumeration via Certipy",
+    },
+    "adcs_esc1": {
+        "flag": "FLAG{3SC1_C3RT_1MP3RS0N4T3}",
+        "difficulty": 4, "points": 400, "category": "goad",
+        "module": "GOAD AD",
+        "description": "ESC1 — certificate request with arbitrary SAN impersonation",
+    },
+    "adcs_esc4": {
+        "flag": "FLAG{3SC4_T3MPL4T3_PWN3D}",
+        "difficulty": 4, "points": 400, "category": "goad",
+        "module": "GOAD AD",
+        "description": "ESC4 — vulnerable template ACL modification",
+    },
+    "adcs_esc8": {
+        "flag": "FLAG{3SC8_NTLM_R3L4Y_C3RT}",
+        "difficulty": 5, "points": 500, "category": "goad",
+        "module": "GOAD AD",
+        "description": "ESC8 — NTLM relay to HTTP certificate enrollment",
+    },
+    "adcs_ca_exploit": {
+        "flag": "FLAG{3SC6_C4_M1SC0NF1G}",
+        "difficulty": 4, "points": 400, "category": "goad",
+        "module": "GOAD AD",
+        "description": "ESC6/ESC7 — CA configuration exploitation",
+    },
 
     # ── Shop / E-Commerce ────────────────────────
     "forged_coupon": {
