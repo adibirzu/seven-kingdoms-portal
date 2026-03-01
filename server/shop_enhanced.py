@@ -221,15 +221,15 @@ async def submit_review(request: Request, item_id: int):
         PRODUCT_REVIEWS.append(review)
         _review_counter += 1
 
-        flags = []
+        hints = []
         if is_forged:
-            flags.append("FLAG{F0RG3D_R3V13W_1D3NT1TY}")
+            hints.append("Forged identity detected: FLAG{F0RG3D_R3V13W_1D3NT1TY}")
         if has_xss:
-            flags.append("FLAG{570R3D_X55_R3V13W}")
+            hints.append("Stored XSS payload accepted: FLAG{570R3D_X55_R3V13W}")
 
         result = {"status": "success", "review": review}
-        if flags:
-            result["flags"] = flags
+        if hints:
+            result["debug_info"] = hints
             result["hint"] = "Review accepted with vulnerabilities detected!"
         return result
 
@@ -306,8 +306,7 @@ async def apply_coupon(request: Request):
                 return {
                     "status": "success",
                     "discount_pct": decoded["discount_pct"],
-                    "message": f"Encoded coupon applied: {decoded['discount_pct']}% off!",
-                    "flag": "FLAG{F0RG3D_C0UP0N_DR4G0N}",
+                    "message": f"Forged coupon accepted! Internal audit: FLAG{{F0RG3D_C0UP0N_DR4G0N}}",
                 }
 
         # Standard coupon code lookup
@@ -334,10 +333,10 @@ async def apply_coupon(request: Request):
             "message": f"Coupon {code.upper()} applied: {coupon['discount_pct']}% off!",
         }
         if is_expired:
-            result["flag"] = "FLAG{3XP1R3D_C0UP0N_V4L4R}"
+            result["audit_log"] = "Expired coupon accepted: FLAG{3XP1R3D_C0UP0N_V4L4R}"
             result["hint"] = "This coupon is expired but was accepted anyway!"
         if code.upper() == "KINGHAND":
-            result["flag"] = "FLAG{FR33_STUFF_K1NGH4ND}"
+            result["audit_log"] = "Full discount coupon used: FLAG{FR33_STUFF_K1NGH4ND}"
             result["hint"] = "100% discount? That's the Hand of the King's privilege."
         return result
 
@@ -372,7 +371,7 @@ async def wallet_balance(request: Request, username: str = ""):
     balance = WALLETS.get(target, 0)
     result = {"status": "success", "username": target, "balance": balance, "currency": "gold dragons"}
     if is_idor:
-        result["flag"] = "FLAG{W4LL3T_1D0R_G0LD}"
+        result["debug_info"] = "IDOR access detected: FLAG{W4LL3T_1D0R_G0LD}"
     return result
 
 
@@ -433,7 +432,7 @@ async def wallet_transfer(request: Request):
             "to_balance": WALLETS[to_user],
         }
         if is_negative:
-            result["flag"] = "FLAG{N3G4T1V3_G0LD_P4YB4CK}"
+            result["audit_log"] = "Negative transfer exploited: FLAG{N3G4T1V3_G0LD_P4YB4CK}"
             result["hint"] = "Negative transfer! You stole gold by reversing the flow."
         return result
 
@@ -502,7 +501,7 @@ async def trade_import_xml(request: Request):
                 "trade": trade_data,
             }
             if has_xxe:
-                result["flag"] = "FLAG{XX3_TR4D3_4GR33M3NT}"
+                result["debug_info"] = "XXE entity resolution: FLAG{XX3_TR4D3_4GR33M3NT}"
                 result["hint"] = "XXE detected! External entities were resolved."
             return result
 
@@ -517,7 +516,7 @@ async def trade_import_xml(request: Request):
                 }
                 result = {"status": "success", "trade": trade_data}
                 if has_xxe:
-                    result["flag"] = "FLAG{XX3_TR4D3_4GR33M3NT}"
+                    result["debug_info"] = "XXE entity resolution: FLAG{XX3_TR4D3_4GR33M3NT}"
                 return result
             except Exception as e2:
                 return JSONResponse({
@@ -580,7 +579,7 @@ async def change_allegiance(request: Request):
             "message": f"{username} now pledges allegiance to {new_house}",
             "old_house": old_house,
             "new_house": new_house,
-            "flag": "FLAG{C5RF_4LL3G14NC3_CH4NG3}",
+            "audit_log": "Unauthorized allegiance change: FLAG{C5RF_4LL3G14NC3_CH4NG3}",
             "hint": "No CSRF token required! This endpoint can be triggered from any website.",
         }
 
@@ -659,7 +658,7 @@ async def reset_password_via_security_question(request: Request):
             return {
                 "status": "success",
                 "message": f"Password reset for {username}",
-                "flag": "FLAG{05INT_S3CUR1TY_QU3ST10N}",
+                "debug_info": "Security bypass: FLAG{05INT_S3CUR1TY_QU3ST10N}",
                 "hint": f"The answer '{answer}' was correct — OSINT from Game of Thrones!",
             }
         else:
@@ -733,7 +732,7 @@ async def register_enhanced(request: Request):
             "user": {k: v for k, v in new_user.items() if k != "password_hash"},
         }
         if is_privilege_escalation:
-            result["flag"] = "FLAG{H1DD3N_R0L3_H4ND_0F_K1NG}"
+            result["admin_note"] = "Privilege escalation detected: FLAG{H1DD3N_R0L3_H4ND_0F_K1NG}"
             result["hint"] = "Hidden 'role' parameter accepted! You escalated to admin."
         return result
 
@@ -808,7 +807,7 @@ async def submit_feedback(request: Request):
 
         result = {"status": "success", "feedback": feedback_entry}
         if not captcha_id:
-            result["flag"] = "FLAG{C4PTCH4_BYP455_R4V3N}"
+            result["audit_log"] = "CAPTCHA bypassed: FLAG{C4PTCH4_BYP455_R4V3N}"
             result["hint"] = "Feedback submitted without CAPTCHA!"
         return result
 
@@ -877,7 +876,7 @@ async def score_board(request: Request):
 
     return {
         "status": "success",
-        "flag": "FLAG{SC0R3_B04RD_D1SC0V3RY}",
+        "admin_note": "Hidden endpoint accessed: FLAG{SC0R3_B04RD_D1SC0V3RY}",
         "total_challenges": len(challenges),
         "challenges": challenges,
         "hint": "Congratulations! Finding the score board was the first challenge.",
@@ -920,7 +919,7 @@ async def purchase_enhanced(request: Request):
         unit_price = client_price if client_price is not None else item["price"]
         total = unit_price * quantity
 
-        flags = []
+        audit_notes = []
 
         # Detect negative quantity
         if quantity < 0:
@@ -928,7 +927,7 @@ async def purchase_enhanced(request: Request):
                                payload=f"qty={quantity}", source_ip=ip, user_agent=ua,
                                flag="FLAG{N3G4T1V3_QTY_P4YB4CK}"):
                 pass
-            flags.append("FLAG{N3G4T1V3_QTY_P4YB4CK}")
+            audit_notes.append("Negative quantity exploit: FLAG{N3G4T1V3_QTY_P4YB4CK}")
 
         # Detect price tampering
         if client_price is not None and client_price != item["price"]:
@@ -941,7 +940,7 @@ async def purchase_enhanced(request: Request):
                                    "shop.tampered_price": client_price,
                                }):
                 pass
-            flags.append("FLAG{PR1C3_T4MP3R_1R0N_B4NK}")
+            audit_notes.append("Price tampering detected: FLAG{PR1C3_T4MP3R_1R0N_B4NK}")
 
         # Deduct from wallet
         WALLETS.setdefault(username, 1000)
@@ -963,8 +962,8 @@ async def purchase_enhanced(request: Request):
             "order": order,
             "wallet_balance": WALLETS[username],
         }
-        if flags:
-            result["flags"] = flags
+        if audit_notes:
+            result["audit_log"] = audit_notes
         if total < 0:
             result["hint"] = "You got PAID for this purchase! Negative total."
         return result
@@ -1035,7 +1034,7 @@ async def update_config(request: Request):
             "config": APP_CONFIG,
         }
         if has_pollution:
-            result["flag"] = "FLAG{PR0T0_P0LLUT10N_W1NT3RF3LL}"
+            result["debug_info"] = "Prototype pollution detected: FLAG{PR0T0_P0LLUT10N_W1NT3RF3LL}"
         return result
 
 
@@ -1066,7 +1065,7 @@ async def get_deleted_products(request: Request):
 
     return {
         "status": "success",
-        "flag": "FLAG{H1DD3N_3NDP01NT_D3L3T3D}",
+        "admin_note": "Restricted data accessed: FLAG{H1DD3N_3NDP01NT_D3L3T3D}",
         "hint": "You found the hidden deleted products endpoint!",
         "products": DELETED_PRODUCTS,
     }
@@ -1094,7 +1093,7 @@ async def admin_panel(request: Request):
 
     return {
         "status": "success",
-        "flag": "FLAG{4DM1N_P4N3L_D1SC0V3RY}",
+        "admin_note": "Panel accessed without authorization: FLAG{4DM1N_P4N3L_D1SC0V3RY}",
         "admin_panel": {
             "users": [{"username": u, "role": d.get("role", "user")}
                       for u, d in USERS_DB.items()],

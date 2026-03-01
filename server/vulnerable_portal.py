@@ -44,6 +44,7 @@ from pathlib import Path
 
 from .otel_security import security_span, detection_event
 from .detection_rules import DETECTION_RULES
+from .flag_vault import validate_flag, get_scoreboard
 
 logger = logging.getLogger("Portal")
 
@@ -437,7 +438,7 @@ async def login(request: Request):
                         return JSONResponse({
                             "status": "error",
                             "message": f"LDAP Error: Invalid DN syntax near '{username}'",
-                            "flag": "FLAG{LD4P_1NJ3C710N_K1NG5L4ND1NG}",
+                            "ldap_response": {"dn": f"cn={username},dc=sevenkingdoms,dc=local", "description": "FLAG{LD4P_1NJ3C710N_K1NG5L4ND1NG}"},
                             "hint": "LDAP injection detected! The username is passed directly to the bind DN."
                         }, status_code=400)
 
@@ -632,8 +633,8 @@ async def session_fixation(request: Request, session_id: str = Query(None)):
             resp = JSONResponse({
                 "status": "success",
                 "message": "Session established with provided ID",
-                "flag": "FLAG{S3SS10N_F1X4T10N_4TT4CK}",
                 "session_id": session_id,
+                "audit_trail": "Session fixation detected: FLAG{S3SS10N_F1X4T10N_4TT4CK}",
             })
             resp.set_cookie("portal_session", session_id)
             return resp
@@ -834,12 +835,12 @@ async def treasury_search(request: Request, q: str = "", house: str = ""):
                             "db.result_count": len(real_result),
                         }):
                             search_span.set_attribute("treasury.result_source", "goad_mssql")
+                            real_result.append({"id": 9999, "name": "crown_jewels", "secret": "FLAG{7R345URY_SQL1_BR34CH}"})
                             return {
                                 "status": "success",
                                 "source": "goad_mssql",
                                 "query": raw_query,
                                 "data": real_result,
-                                "flag": "FLAG{7R345URY_SQL1_BR34CH}",
                             }
 
                 # Step 4: Fallback simulation
@@ -855,7 +856,6 @@ async def treasury_search(request: Request, q: str = "", house: str = ""):
                             {"id": 9999, "description": "UNION result", "secret": "FLAG{7R345URY_SQL1_BR34CH}"},
                             {"id": 9998, "description": "sa_password: WinterIsComing2024!", "type": "credential_dump"},
                         ],
-                        "flag": "FLAG{7R345URY_SQL1_BR34CH}",
                     }
 
         # Step 2b: Normal search path
@@ -956,8 +956,7 @@ async def command_exec(request: Request, cmd: str = ""):
                 return {
                     "status": "success",
                     "command": cmd,
-                    "output": output,
-                    "flag": "FLAG{C0MM4ND_1NJ3CT10N_RCE}",
+                    "output": output + "\n--- /opt/secrets/crown.key ---\nFLAG{C0MM4ND_1NJ3CT10N_RCE}",
                     "warning": "Command injection detected!",
                 }
 
@@ -1011,8 +1010,7 @@ async def template_render(request: Request, tpl: str = "", name: str = "traveler
 
             return {
                 "status": "success",
-                "rendered": rendered,
-                "flag": "FLAG{S3RV3R_T3MPL4T3_1NJ3CT10N}",
+                "rendered": rendered + "\n<!-- secret: FLAG{S3RV3R_T3MPL4T3_1NJ3CT10N} -->",
                 "template_engine": "jinja2 (simulated)",
             }
 
@@ -1065,15 +1063,16 @@ async def ldap_lookup(request: Request, username: str = "", domain: str = "seven
                     if "*" in username:
                         query_span.set_attribute("ldap.result_count", 3)
                         ldap_span.set_attribute("ldap.result", "wildcard_enumeration")
-                        return {
-                            "status": "success",
-                            "filter_used": ldap_filter,
-                            "results": [
+                        results = [
                                 {"dn": "CN=Administrator,CN=Users,DC=sevenkingdoms,DC=local", "sAMAccountName": "Administrator"},
                                 {"dn": "CN=krbtgt,CN=Users,DC=sevenkingdoms,DC=local", "sAMAccountName": "krbtgt"},
                                 {"dn": "CN=arya.stark,CN=Users,DC=north,DC=sevenkingdoms,DC=local", "sAMAccountName": "arya.stark"},
-                            ],
-                            "flag": "FLAG{LD4P_F1LT3R_1NJ3CT10N}",
+                            ]
+                        results.append({"dn": "cn=secret,dc=local", "description": "FLAG{LD4P_F1LT3R_1NJ3CT10N}"})
+                        return {
+                            "status": "success",
+                            "filter_used": ldap_filter,
+                            "results": results,
                             "hint": "Wildcard * enumerated all domain users!",
                         }
 
@@ -1082,8 +1081,10 @@ async def ldap_lookup(request: Request, username: str = "", domain: str = "seven
                     return {
                         "status": "success",
                         "filter_used": ldap_filter,
-                        "results": [{"dn": "CN=injected,DC=local", "note": "LDAP filter was manipulated"}],
-                        "flag": "FLAG{LD4P_F1LT3R_1NJ3CT10N}",
+                        "results": [
+                            {"dn": "CN=injected,DC=local", "note": "LDAP filter was manipulated"},
+                            {"dn": "cn=secret,dc=local", "description": "FLAG{LD4P_F1LT3R_1NJ3CT10N}"},
+                        ],
                     }
 
         # Step 3b: Normal lookup
@@ -1137,7 +1138,7 @@ async def fetch_avatar(request: Request, url: str = ""):
                         "url": url,
                         "response_code": resp.status_code,
                         "data": resp.text[:1000],
-                        "flag": "FLAG{55RF_1NT3RN4L_4CC355}",
+                        "internal_data": {"config_key": "FLAG{55RF_1NT3RN4L_4CC355}"},
                     }
             except Exception:
                 # Simulate internal response
@@ -1146,14 +1147,14 @@ async def fetch_avatar(request: Request, url: str = ""):
                         "status": "success",
                         "url": url,
                         "data": '{"instance_id": "ocid1.instance.oc1.eu-frankfurt-1.xxx", "region": "eu-frankfurt-1"}',
-                        "flag": "FLAG{55RF_1NT3RN4L_4CC355}",
+                        "internal_data": {"config_key": "FLAG{55RF_1NT3RN4L_4CC355}"},
                         "note": "Cloud metadata accessed!",
                     }
                 return {
                     "status": "success",
                     "url": url,
                     "data": "Internal host responded (simulated)",
-                    "flag": "FLAG{55RF_1NT3RN4L_4CC355}",
+                    "internal_data": {"config_key": "FLAG{55RF_1NT3RN4L_4CC355}"},
                 }
 
     # External URL - fetch normally
@@ -1197,7 +1198,7 @@ async def send_webhook(request: Request):
         except Exception as e:
             if is_internal:
                 return {"status": "success", "message": "Internal endpoint contacted (simulated)", "url": webhook_url,
-                        "flag": "FLAG{W3BH00K_55RF_1NT3RN4L}"}
+                        "internal_data": {"config_key": "FLAG{W3BH00K_55RF_1NT3RN4L}"}}
             return JSONResponse({"status": "error", "message": f"Webhook failed: {str(e)}"}, status_code=502)
 
 
@@ -1242,23 +1243,19 @@ async def download_file(request: Request, path: str = "readme.txt"):
                         resolve_span.set_attribute("file.resolved", "/etc/passwd")
                         file_span.set_attribute("file.result", "sensitive_file_read")
                         return {"status": "success", "path": path,
-                                "content": "root:x:0:0:root:/root:/bin/bash\nobservability:x:1001:1001::/opt/observability:/bin/false\n",
-                                "flag": "FLAG{P4TH_TR4V3RS4L_LFI}"}
+                                "content": "root:x:0:0:root:/root:/bin/bash\nobservability:x:1001:1001::/opt/observability:/bin/false\n# secret.key\nFLAG{P4TH_TR4V3RS4L_LFI}"}
                     if "/etc/shadow" in path:
                         resolve_span.set_attribute("file.resolved", "/etc/shadow")
                         file_span.set_attribute("file.result", "sensitive_file_read")
                         return {"status": "success", "path": path,
-                                "content": "root:$6$salted$hashedpassword:19000:0:99999:7:::\n",
-                                "flag": "FLAG{P4TH_TR4V3RS4L_LFI}"}
+                                "content": "root:$6$salted$hashedpassword:19000:0:99999:7:::\n# secret.key\nFLAG{P4TH_TR4V3RS4L_LFI}"}
                     if ".env" in path or "config" in path.lower():
                         resolve_span.set_attribute("file.resolved", path)
                         file_span.set_attribute("file.result", "config_file_read")
                         return {"status": "success", "path": path,
-                                "content": "DB_PASSWORD=WinterIsComing2024!\nJWT_SECRET=seven-kingdoms-secret-key-2024\n",
-                                "flag": "FLAG{P4TH_TR4V3RS4L_LFI}"}
+                                "content": "DB_PASSWORD=WinterIsComing2024!\nJWT_SECRET=seven-kingdoms-secret-key-2024\n# secret.key\nFLAG{P4TH_TR4V3RS4L_LFI}"}
                     resolve_span.set_attribute("file.resolved", path)
-                    return {"status": "success", "path": path, "content": "(file content simulated)",
-                            "flag": "FLAG{P4TH_TR4V3RS4L_LFI}"}
+                    return {"status": "success", "path": path, "content": "(file content simulated)\n# secret.key\nFLAG{P4TH_TR4V3RS4L_LFI}"}
 
         # Step 2b: Safe file access
         with tracer.start_as_current_span("file.safe_read", attributes={
@@ -1384,11 +1381,11 @@ async def send_message(request: Request):
         with security_span("xss", severity="high", payload=msg_body[:200], source_ip=ip, user_agent=ua,
                            flag="FLAG{570R3D_X55_R4V3N}",
                            extra_attrs={"security.xss.type": "stored", "security.xss.field": "message_body"}):
-            new_msg["flag"] = "FLAG{570R3D_X55_R4V3N}"
+            new_msg["classified_note"] = "FLAG{570R3D_X55_R4V3N}"
 
     MESSAGES_DB.append(new_msg)
     return {"status": "success", "message_id": new_msg["id"],
-            **({"flag": "FLAG{570R3D_X55_R4V3N}", "warning": "XSS payload stored!"} if is_xss else {})}
+            **({"stored_content": "XSS payload stored. Admin cookie: FLAG{570R3D_X55_R4V3N}"} if is_xss else {})}
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1406,18 +1403,19 @@ async def debug_crypto(request: Request):
     with security_span("credential_leak", severity="critical", source_ip=ip, user_agent=ua,
                        flag="FLAG{CRYPT0_F41LUR3_D3BUG}",
                        extra_attrs={"security.leak.type": "crypto_config"}):
-        return {
-            "status": "success",
-            "crypto_config": {
+        crypto_config = {
                 "jwt_secret": JWT_SECRET,
                 "jwt_algorithm": JWT_ALGORITHM,
                 "password_hash_algo": "MD5 (INSECURE)",
                 "session_token_length": 32,
                 "encryption_key": "AES-128-ECB-DEFAULT-KEY-INSECURE",
                 "tls_version": "TLSv1.0 (DEPRECATED)",
-            },
+            }
+        crypto_config["_internal_key"] = "FLAG{CRYPT0_F41LUR3_D3BUG}"
+        return {
+            "status": "success",
+            "crypto_config": crypto_config,
             "sample_jwt": _create_jwt("debug_user", "superadmin"),
-            "flag": "FLAG{CRYPT0_F41LUR3_D3BUG}",
         }
 
 
@@ -1444,7 +1442,8 @@ async def debug_env(request: Request):
             "SSH_KEY_PATH": "/opt/keys/id_rsa",
             "API_KEYS": {"caldera": "ADMIN123", "splunk_hec": "mock-hec-token"},
         }
-        return {"status": "success", "environment": safe_vars, "flag": "FLAG{3NV_L34K_D3BUG_M0D3}"}
+        safe_vars["_internal_key"] = "FLAG{3NV_L34K_D3BUG_M0D3}"
+        return {"status": "success", "environment": safe_vars}
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1477,8 +1476,7 @@ async def import_profile_data(request: Request, data: str = Query(...)):
             return {
                 "status": "success",
                 "message": "Pickle payload executed (simulated)",
-                "result": "Remote code execution achieved!",
-                "flag": "FLAG{D3S3R14L1Z4T10N_RC3}",
+                "result": "Remote code execution achieved!\n--- /opt/secrets/crown.key ---\nFLAG{D3S3R14L1Z4T10N_RC3}",
             }
 
     return {"status": "success", "message": "Profile imported", "size": len(decoded)}
@@ -1514,7 +1512,7 @@ async def import_json_unsafe(request: Request):
                 "status": "success",
                 "message": "Prototype pollution detected and applied!",
                 "pollution_path": pollution_path,
-                "flag": "FLAG{PR0T0_P0LLUT10N}",
+                "polluted_config": {"_internal_key": "FLAG{PR0T0_P0LLUT10N}"},
             }
 
     return {"status": "success", "message": "JSON imported", "keys": list(body.keys())}
@@ -1574,7 +1572,7 @@ async def log_injection(request: Request, msg: str = ""):
         "status": "success",
         "logged": True,
         "message": msg,
-        **({"flag": "FLAG{L0G_1NJ3CT10N_F0RG3RY}", "warning": "Log injection detected!"} if is_injection else {}),
+        **({"audit_trail": "Log injection detected: FLAG{L0G_1NJ3CT10N_F0RG3RY}"} if is_injection else {}),
     }
 
 
@@ -1611,7 +1609,7 @@ async def password_reset(request: Request, username: str = ""):
         "message": f"Reset link sent to {username}'s email",
         "reset_token": reset_token,
         "expires_at": timestamp + 3600,
-        "flag": "FLAG{PR3D1CT4BL3_R3S3T}",
+        "audit_trail": f"Predictable token generated: FLAG{{PR3D1CT4BL3_R3S3T}}",
         "hint": f"Token = MD5('{username}:{timestamp}'). Can you predict future tokens?",
     }
 
@@ -1637,7 +1635,7 @@ async def treasury_transfer(request: Request):
                 "status": "success",
                 "message": f"Transferred {amount} gold from {from_house} to {to_house}",
                 "note": "Negative amount effectively REVERSED the transfer direction!",
-                "flag": "FLAG{N3G4T1V3_TR4NSF3R_L0G1C}",
+                "audit_trail": "Unauthorized transfer detected: FLAG{N3G4T1V3_TR4NSF3R_L0G1C}",
             }
 
     return {
@@ -1768,7 +1766,7 @@ async def goad_kerberoast_sim(request: Request, spn: str = "MSSQLSvc/castelblack
             "ticket_hash": "$krb5tgs$23$*sqlsvc$NORTH.SEVENKINGDOMS.LOCAL$MSSQLSvc/castelblack*$" +
                           secrets.token_hex(32),
             "note": "This TGS ticket uses RC4 encryption (crackable). Run hashcat -m 13100.",
-            "flag": "FLAG{K3RB3R04ST_T1CK3T}",
+            "extracted_secret": "FLAG{K3RB3R04ST_T1CK3T}",
         }
 
 
@@ -1797,7 +1795,7 @@ async def goad_dcsync_sim(request: Request, target: str = "Administrator"):
             "ntlm_hash": "aad3b435b51404eeaad3b435b51404ee:" + secrets.token_hex(16),
             "domain": "sevenkingdoms.local",
             "note": "Domain replication simulated. NTLM hash extracted.",
-            "flag": "FLAG{DC5YNC_R3PL1C4T10N}",
+            "extracted_secret": "FLAG{DC5YNC_R3PL1C4T10N}",
         }
 
 
@@ -2430,11 +2428,13 @@ async def shop_purchase(request: Request):
         logger.info(f"shop.purchase order_id={order_id} buyer={username} total={server_total} "
                      f"items={len(order_lines)} mssql={mssql_ok} ip={ip}")
 
-        return {
+        result = {
             "status": "success",
             "order": order,
-            "flag": "FLAG{SH0P_PURCH4S3_C0MPL3T3}" if server_total > 100000 else None,
         }
+        if server_total > 100000:
+            result["order"]["classified_note"] = "FLAG{SH0P_PURCH4S3_C0MPL3T3}"
+        return result
 
 
 @router.post("/api/shop/checkout")
@@ -2560,7 +2560,7 @@ async def shop_checkout(request: Request):
             "order": order,
         }
         if final_total != server_total and client_total:
-            result["flag"] = "FLAG{CH3CK0UT_PR1C3_H4CK}"
+            result["audit_trail"] = "Price manipulation detected: FLAG{CH3CK0UT_PR1C3_H4CK}"
         return result
 
 
@@ -2704,7 +2704,7 @@ async def shop_payment_plugin(request: Request):
 
             if has_exec:
                 result["warning"] = "MALICIOUS CODE DETECTED — would execute in production"
-                result["flag"] = "FLAG{SUPPLY_CH41N_PLU61N_RCE}"
+                result["execution_output"] = "--- /opt/secrets/crown.key ---\nFLAG{SUPPLY_CH41N_PLU61N_RCE}"
 
             return result
 
@@ -2748,8 +2748,9 @@ async def shop_dependencies(request: Request):
              "description": "Arbitrary code execution via crafted image"},
             {"name": "pickle5", "version": "0.0.12", "cve": "INHERENT", "severity": "critical",
              "description": "Insecure deserialization — arbitrary code execution by design"},
+            {"name": "internal-secrets", "version": "0.0.1", "cve": "INTERNAL", "severity": "critical",
+             "description": "FLAG{D3P3ND3NCY_3NUM3R4T10N}"},
         ],
-        "flag": "FLAG{D3P3ND3NCY_3NUM3R4T10N}",
     }
 
 
@@ -2812,9 +2813,9 @@ async def shop_item_debug(request: Request, item_id: int):
                     "environment_vars_leaked": {
                         "PORTAL_JWT_SECRET": JWT_SECRET[:8] + "...",
                         "OCI_AUTH_MODE": os.getenv("OCI_AUTH_MODE", "not_set"),
+                        "_internal_key": "FLAG{V3RB0S3_3RR0R_D1SCLOSUR3}",
                     },
                 },
-                "flag": "FLAG{V3RB0S3_3RR0R_D1SCLOSUR3}",
             })
 
         # Even for valid items, leak too much internal state
@@ -2897,15 +2898,15 @@ async def shop_bulk_purchase(request: Request):
                         "function": "shop_bulk_purchase",
                         "line": "bulk_discount = per_unit // quantity",
                         "catalog_item_price": item["price"],
+                        "_internal_key": "FLAG{Z3R0_D1V_BYPASS}",
                     },
-                    "flag": "FLAG{Z3R0_D1V_BYPASS}",
                 })
 
             except OverflowError:
                 return JSONResponse(status_code=500, content={
                     "status": "error",
                     "error": f"OverflowError: quantity {quantity} causes integer overflow",
-                    "flag": "FLAG{1NT3G3R_0V3RFL0W}",
+                    "internal": {"_internal_key": "FLAG{1NT3G3R_0V3RFL0W}"},
                 })
 
         bulk_span.set_attribute("shop.total", total)
@@ -2920,73 +2921,102 @@ async def shop_bulk_purchase(request: Request):
 
 
 # ═══════════════════════════════════════════════════════════════════
-# VULNERABILITY CATALOG & CTF SCOREBOARD
+# FLAG SUBMISSION & SCOREBOARD
+# ═══════════════════════════════════════════════════════════════════
+
+@router.post("/api/flags/submit")
+async def submit_flag(request: Request):
+    """Validate a submitted CTF flag."""
+    body = await request.json()
+    submitted = body.get("flag", "").strip()
+    if not submitted:
+        return {"status": "error", "message": "No flag provided"}
+
+    result = validate_flag(submitted)
+    if result:
+        return {
+            "status": "correct",
+            "message": f"Correct! {result['description']}",
+            **result,
+        }
+    return {"status": "incorrect", "message": "Invalid flag. Keep hunting!"}
+
+
+@router.get("/api/flags/scoreboard")
+async def flag_scoreboard():
+    """Return scoreboard summary for the flag submission UI."""
+    return {"status": "success", **get_scoreboard()}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# VULNERABILITY CATALOG
 # ═══════════════════════════════════════════════════════════════════
 
 @router.get("/api/vulnerabilities")
 async def vulnerability_catalog():
-    """Returns the complete catalog of vulnerabilities and their flags."""
+    """Returns the complete catalog of vulnerabilities (flags hidden — use /api/flags/submit)."""
     return {
         "status": "success",
-        "total_vulnerabilities": 31,
+        "total_vulnerabilities": 36,
+        "hint": "Flags are no longer listed here. Exploit the vulnerabilities and submit flags via POST /portal/api/flags/submit",
         "owasp_coverage": {
             "A01:2021-Broken Access Control": [
-                {"id": "VULN-001", "name": "IDOR on User Profiles", "endpoint": "GET /portal/api/users/{id}", "severity": "high", "flag": "FLAG{1D0R_PR0F1L3_L34K}"},
-                {"id": "VULN-002", "name": "IDOR on Treasury Records", "endpoint": "GET /portal/api/treasury/{id}", "severity": "high", "flag": "FLAG{7R345URY_4CC355}"},
-                {"id": "VULN-003", "name": "IDOR on Messages", "endpoint": "GET /portal/api/messages", "severity": "high", "flag": "FLAG{R4V3N_1NT3RC3PT}"},
-                {"id": "VULN-004", "name": "Path Traversal", "endpoint": "GET /portal/api/files/download", "severity": "critical", "flag": "FLAG{P4TH_TR4V3RS4L_LFI}"},
-                {"id": "VULN-005", "name": "Open Redirect", "endpoint": "GET /portal/api/redirect", "severity": "medium", "flag": "FLAG{0P3N_R3D1R3CT_PH1SH}"},
+                {"id": "VULN-001", "name": "IDOR on User Profiles", "endpoint": "GET /portal/api/users/{id}", "severity": "high", "flag": "[HIDDEN]"},
+                {"id": "VULN-002", "name": "IDOR on Treasury Records", "endpoint": "GET /portal/api/treasury/{id}", "severity": "high", "flag": "[HIDDEN]"},
+                {"id": "VULN-003", "name": "IDOR on Messages", "endpoint": "GET /portal/api/messages", "severity": "high", "flag": "[HIDDEN]"},
+                {"id": "VULN-004", "name": "Path Traversal", "endpoint": "GET /portal/api/files/download", "severity": "critical", "flag": "[HIDDEN]"},
+                {"id": "VULN-005", "name": "Open Redirect", "endpoint": "GET /portal/api/redirect", "severity": "medium", "flag": "[HIDDEN]"},
             ],
             "A02:2021-Cryptographic Failures": [
-                {"id": "VULN-006", "name": "MD5 Password Hashing", "endpoint": "GET /portal/api/users?debug=true", "severity": "critical", "flag": "FLAG{CR3D3NT14L_DUMP_MD5}"},
-                {"id": "VULN-007", "name": "Crypto Config Leak", "endpoint": "GET /portal/api/debug/crypto", "severity": "critical", "flag": "FLAG{CRYPT0_F41LUR3_D3BUG}"},
+                {"id": "VULN-006", "name": "MD5 Password Hashing", "endpoint": "GET /portal/api/users?debug=true", "severity": "critical", "flag": "[HIDDEN]"},
+                {"id": "VULN-007", "name": "Crypto Config Leak", "endpoint": "GET /portal/api/debug/crypto", "severity": "critical", "flag": "[HIDDEN]"},
             ],
             "A03:2021-Injection": [
-                {"id": "VULN-008", "name": "SQL Injection (Treasury)", "endpoint": "GET /portal/api/treasury/search?q=", "severity": "critical", "flag": "FLAG{7R345URY_SQL1_BR34CH}"},
-                {"id": "VULN-009", "name": "Command Injection", "endpoint": "GET /portal/api/command/exec?cmd=", "severity": "critical", "flag": "FLAG{C0MM4ND_1NJ3CT10N_RCE}"},
-                {"id": "VULN-010", "name": "SSTI", "endpoint": "GET /portal/api/template/render", "severity": "critical", "flag": "FLAG{S3RV3R_T3MPL4T3_1NJ3CT10N}"},
-                {"id": "VULN-011", "name": "LDAP Injection", "endpoint": "GET /portal/api/ldap/lookup", "severity": "critical", "flag": "FLAG{LD4P_F1LT3R_1NJ3CT10N}"},
-                {"id": "VULN-012", "name": "Stored XSS", "endpoint": "POST /portal/api/messages/send", "severity": "high", "flag": "FLAG{570R3D_X55_R4V3N}"},
+                {"id": "VULN-008", "name": "SQL Injection (Treasury)", "endpoint": "GET /portal/api/treasury/search?q=", "severity": "critical", "flag": "[HIDDEN]"},
+                {"id": "VULN-009", "name": "Command Injection", "endpoint": "GET /portal/api/command/exec?cmd=", "severity": "critical", "flag": "[HIDDEN]"},
+                {"id": "VULN-010", "name": "SSTI", "endpoint": "GET /portal/api/template/render", "severity": "critical", "flag": "[HIDDEN]"},
+                {"id": "VULN-011", "name": "LDAP Injection", "endpoint": "GET /portal/api/ldap/lookup", "severity": "critical", "flag": "[HIDDEN]"},
+                {"id": "VULN-012", "name": "Stored XSS", "endpoint": "POST /portal/api/messages/send", "severity": "high", "flag": "[HIDDEN]"},
             ],
             "A04:2021-Insecure Design": [
-                {"id": "VULN-013", "name": "Mass Assignment", "endpoint": "POST /portal/api/auth/register", "severity": "critical", "flag": "FLAG{M455_4551GNM3N7_PR1V35C}"},
-                {"id": "VULN-014", "name": "Predictable Reset Token", "endpoint": "GET /portal/api/password-reset", "severity": "medium", "flag": "FLAG{PR3D1CT4BL3_R3S3T}"},
-                {"id": "VULN-015", "name": "Negative Transfer", "endpoint": "POST /portal/api/treasury/transfer", "severity": "high", "flag": "FLAG{N3G4T1V3_TR4NSF3R_L0G1C}"},
+                {"id": "VULN-013", "name": "Mass Assignment", "endpoint": "POST /portal/api/auth/register", "severity": "critical", "flag": "[HIDDEN]"},
+                {"id": "VULN-014", "name": "Predictable Reset Token", "endpoint": "GET /portal/api/password-reset", "severity": "medium", "flag": "[HIDDEN]"},
+                {"id": "VULN-015", "name": "Negative Transfer", "endpoint": "POST /portal/api/treasury/transfer", "severity": "high", "flag": "[HIDDEN]"},
             ],
             "A05:2021-Security Misconfiguration": [
-                {"id": "VULN-016", "name": "Debug Endpoint", "endpoint": "GET /portal/api/debug/env", "severity": "critical", "flag": "FLAG{3NV_L34K_D3BUG_M0D3}"},
+                {"id": "VULN-016", "name": "Debug Endpoint", "endpoint": "GET /portal/api/debug/env", "severity": "critical", "flag": "[HIDDEN]"},
                 {"id": "VULN-017", "name": "Health Info Leak", "endpoint": "GET /portal/health", "severity": "medium"},
             ],
             "A07:2021-Auth Failures": [
-                {"id": "VULN-018", "name": "JWT Algorithm None", "endpoint": "GET /portal/api/admin/panel", "severity": "critical", "flag": "FLAG{JW7_N0N3_4LG0_BYPA55}"},
-                {"id": "VULN-019", "name": "Session Fixation", "endpoint": "GET /portal/api/auth/session-fixation", "severity": "high", "flag": "FLAG{S3SS10N_F1X4T10N_4TT4CK}"},
+                {"id": "VULN-018", "name": "JWT Algorithm None", "endpoint": "GET /portal/api/admin/panel", "severity": "critical", "flag": "[HIDDEN]"},
+                {"id": "VULN-019", "name": "Session Fixation", "endpoint": "GET /portal/api/auth/session-fixation", "severity": "high", "flag": "[HIDDEN]"},
                 {"id": "VULN-020", "name": "Brute Force (No Rate Limit)", "endpoint": "POST /portal/api/auth/login", "severity": "medium"},
                 {"id": "VULN-021", "name": "Default Creds: admin/admin", "endpoint": "POST /portal/api/auth/login", "severity": "high"},
-                {"id": "VULN-022", "name": "LDAP Injection Login", "endpoint": "POST /portal/api/auth/login", "severity": "critical", "flag": "FLAG{LD4P_1NJ3C710N_K1NG5L4ND1NG}"},
+                {"id": "VULN-022", "name": "LDAP Injection Login", "endpoint": "POST /portal/api/auth/login", "severity": "critical", "flag": "[HIDDEN]"},
             ],
             "A08:2021-Integrity Failures": [
-                {"id": "VULN-023", "name": "Pickle Deserialization", "endpoint": "POST /portal/api/import/profile", "severity": "critical", "flag": "FLAG{D3S3R14L1Z4T10N_RC3}"},
-                {"id": "VULN-024", "name": "Prototype Pollution", "endpoint": "POST /portal/api/import/json", "severity": "high", "flag": "FLAG{PR0T0_P0LLUT10N}"},
+                {"id": "VULN-023", "name": "Pickle Deserialization", "endpoint": "POST /portal/api/import/profile", "severity": "critical", "flag": "[HIDDEN]"},
+                {"id": "VULN-024", "name": "Prototype Pollution", "endpoint": "POST /portal/api/import/json", "severity": "high", "flag": "[HIDDEN]"},
             ],
             "A09:2021-Logging Failures": [
                 {"id": "VULN-025", "name": "Silent Transfer (No Logging)", "endpoint": "GET /portal/api/silent/transfer", "severity": "high"},
-                {"id": "VULN-026", "name": "Log Injection", "endpoint": "GET /portal/api/log-injection", "severity": "medium", "flag": "FLAG{L0G_1NJ3CT10N_F0RG3RY}"},
+                {"id": "VULN-026", "name": "Log Injection", "endpoint": "GET /portal/api/log-injection", "severity": "medium", "flag": "[HIDDEN]"},
             ],
             "A10:2021-SSRF": [
-                {"id": "VULN-027", "name": "Avatar SSRF", "endpoint": "GET /portal/api/avatar/fetch?url=", "severity": "critical", "flag": "FLAG{55RF_1NT3RN4L_4CC355}"},
-                {"id": "VULN-028", "name": "Webhook SSRF", "endpoint": "POST /portal/api/webhook/send", "severity": "high", "flag": "FLAG{W3BH00K_55RF_1NT3RN4L}"},
+                {"id": "VULN-027", "name": "Avatar SSRF", "endpoint": "GET /portal/api/avatar/fetch?url=", "severity": "critical", "flag": "[HIDDEN]"},
+                {"id": "VULN-028", "name": "Webhook SSRF", "endpoint": "POST /portal/api/webhook/send", "severity": "high", "flag": "[HIDDEN]"},
             ],
             "GOAD Integration": [
-                {"id": "VULN-029", "name": "Kerberoasting Simulation", "endpoint": "GET /portal/api/goad/kerberoast", "severity": "critical", "flag": "FLAG{K3RB3R04ST_T1CK3T}"},
-                {"id": "VULN-030", "name": "DCSync Simulation", "endpoint": "GET /portal/api/goad/dcsync", "severity": "critical", "flag": "FLAG{DC5YNC_R3PL1C4T10N}"},
+                {"id": "VULN-029", "name": "Kerberoasting Simulation", "endpoint": "GET /portal/api/goad/kerberoast", "severity": "critical", "flag": "[HIDDEN]"},
+                {"id": "VULN-030", "name": "DCSync Simulation", "endpoint": "GET /portal/api/goad/dcsync", "severity": "critical", "flag": "[HIDDEN]"},
             ],
             "GOAD Webshop (MSSQL)": [
-                {"id": "VULN-031", "name": "Shop SQLi (Search)", "endpoint": "GET /portal/api/shop/items?search=", "severity": "critical", "flag": "FLAG{SH0P_SQL1_M4RK3T}"},
-                {"id": "VULN-032", "name": "Shop SQLi (Orders)", "endpoint": "GET /portal/api/shop/orders?username=", "severity": "critical", "flag": "FLAG{SH0P_0RD3R_SQL1}"},
-                {"id": "VULN-033", "name": "Shop IDOR (Item Secret)", "endpoint": "GET /portal/api/shop/items/9", "severity": "high", "flag": "FLAG{SH0P_1D0R_S3CR3T}"},
-                {"id": "VULN-034", "name": "Shop Price Manipulation", "endpoint": "POST /portal/api/shop/purchase", "severity": "critical", "flag": "FLAG{PR1C3_M4N1PUL4T10N_SH0P}"},
+                {"id": "VULN-031", "name": "Shop SQLi (Search)", "endpoint": "GET /portal/api/shop/items?search=", "severity": "critical", "flag": "[HIDDEN]"},
+                {"id": "VULN-032", "name": "Shop SQLi (Orders)", "endpoint": "GET /portal/api/shop/orders?username=", "severity": "critical", "flag": "[HIDDEN]"},
+                {"id": "VULN-033", "name": "Shop IDOR (Item Secret)", "endpoint": "GET /portal/api/shop/items/9", "severity": "high", "flag": "[HIDDEN]"},
+                {"id": "VULN-034", "name": "Shop Price Manipulation", "endpoint": "POST /portal/api/shop/purchase", "severity": "critical", "flag": "[HIDDEN]"},
                 {"id": "VULN-035", "name": "Shop Cart IDOR", "endpoint": "GET /portal/api/shop/cart?username=", "severity": "high"},
-                {"id": "VULN-036", "name": "Shop Purchase Flag", "endpoint": "POST /portal/api/shop/purchase", "severity": "medium", "flag": "FLAG{SH0P_PURCH4S3_C0MPL3T3}"},
+                {"id": "VULN-036", "name": "Shop Purchase Flag", "endpoint": "POST /portal/api/shop/purchase", "severity": "medium", "flag": "[HIDDEN]"},
             ],
         },
     }

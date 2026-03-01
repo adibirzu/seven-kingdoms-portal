@@ -60,6 +60,13 @@
       </div>
     </div>
 
+    <!-- Trust Bar -->
+    <div class="shop-trust-bar">
+      <span class="trust-item">&#128230; Free Raven Delivery on orders over 500 gold</span>
+      <span class="trust-item">&#9878; Iron Bank Secure Payments</span>
+      <span class="trust-item">&#9733; Trusted since 283 AC</span>
+    </div>
+
     <!-- Shop Layout: Sidebar + Grid -->
     <div class="shop-layout">
       <!-- Category Sidebar -->
@@ -333,7 +340,6 @@
         <button onclick="document.getElementById('shop-response').style.display='none'" class="shop-cart-close">&#10005;</button>
       </div>
       <pre id="shop-response-body" class="shop-response-body"></pre>
-      <div id="shop-response-flag" class="flag-banner" style="display:none;"></div>
     </div>
   </div>
 </div>
@@ -346,6 +352,17 @@
     <div class="page-header">
       <h1 class="page-title">Penetration Testing Lab</h1>
       <p class="page-subtitle">Interact with the forms below to discover and exploit vulnerabilities. No automated attacks — use your skills.</p>
+    </div>
+
+    <!-- Lab Progress Bar -->
+    <div class="lab-progress-bar-container">
+      <div class="lab-progress-info">
+        <span id="module-progress-text">0 / 12 modules completed</span>
+        <span id="lab-progress-text">0 / 48 flags captured</span>
+      </div>
+      <div class="lab-progress-track">
+        <div id="lab-progress-fill" class="lab-progress-track-fill" style="width:0%"></div>
+      </div>
     </div>
 
     <div class="lab-grid">
@@ -679,7 +696,7 @@
 
           <div class="module-divider"></div>
 
-          <form class="lab-form" data-url="/api/v1/got/wildlings" data-method="GET" data-url-template="/api/v1/got/wildlings?name={name}">
+          <form class="lab-form" data-method="GET" data-url-template="/api/v1/got/wildlings?name={name}">
             <h4 class="form-section-title">Castle Black DB Query</h4>
             <div class="form-group">
               <label>Wildling Name</label>
@@ -715,10 +732,10 @@
         </div>
 
         <div class="module-body">
-          <form class="lab-form" data-url-template="/portal/api/import/profile?payload={payload}" data-method="GET">
+          <form class="lab-form" data-url="/portal/api/import/profile" data-method="POST" data-content="json">
             <div class="form-group">
               <label>Import Profile (Base64)</label>
-              <input name="payload" type="text" placeholder="Base64-encoded profile data" class="mono-input">
+              <input name="data" type="text" placeholder="Base64-encoded profile data" class="mono-input">
             </div>
             <button type="submit" class="form-btn">Import</button>
           </form>
@@ -774,9 +791,7 @@
             <h3>Seven Kingdoms Marketplace</h3>
           </div>
           <div class="card-badges">
-            <span class="badge badge-critical">MSSQL</span>
-            <span class="badge badge-high">SQLi</span>
-            <span class="badge badge-otel">IDOR</span>
+            <span class="badge badge-medium">E-Commerce</span>
           </div>
         </div>
 
@@ -809,7 +824,7 @@
           <div class="module-divider"></div>
 
           <form class="lab-form" data-url-template="/portal/api/shop/items/{item_id}" data-method="GET">
-            <h4 class="form-section-title">Item Detail (IDOR)</h4>
+            <h4 class="form-section-title">Item Detail</h4>
             <div class="form-group">
               <label>Item ID</label>
               <input name="item_id" type="text" placeholder="1-15" value="1">
@@ -841,7 +856,7 @@
           <div class="module-divider"></div>
 
           <form class="lab-form" data-url="/portal/api/shop/purchase" data-method="POST" data-content="json">
-            <h4 class="form-section-title">Purchase (Price Manipulation)</h4>
+            <h4 class="form-section-title">Complete Purchase</h4>
             <div class="form-row">
               <div class="form-group">
                 <label>Username</label>
@@ -858,10 +873,10 @@
           <div class="module-divider"></div>
 
           <form class="lab-form" data-url-template="/portal/api/shop/orders?username={username}" data-method="GET">
-            <h4 class="form-section-title">Order History (SQLi / IDOR)</h4>
+            <h4 class="form-section-title">Order History</h4>
             <div class="form-group">
               <label>Username</label>
-              <input name="username" type="text" placeholder="e.g. admin, ' OR 1=1 --" autocomplete="off">
+              <input name="username" type="text" placeholder="Search orders..." autocomplete="off">
             </div>
             <button type="submit" class="form-btn">View Orders</button>
           </form>
@@ -879,6 +894,7 @@
           <span class="status-dot" id="resp-dot"></span>
           <span id="resp-status">-</span>
           <span id="resp-time" class="resp-time">-</span>
+          <span id="resp-trace-id" class="resp-trace-id" style="display:none;" title=""></span>
           <button id="resp-clear" class="resp-clear-btn" onclick="clearResponse()">Clear</button>
         </div>
       </div>
@@ -889,7 +905,26 @@ This panel shows raw responses from the server — use it to analyze
 the application's behavior, discover data leaks, error messages,
 and hidden information that can be used for exploitation.</pre>
       </div>
-      <div id="resp-flags" class="flag-banner" style="display:none;"></div>
+    </div>
+
+    <!-- ── Flag Submission ──────────────────────────── -->
+    <div id="flag-submit-panel" class="flag-submit-panel">
+      <div class="flag-submit-header">
+        <h3>&#9873; Flag Submission</h3>
+        <div class="flag-progress">
+          <div class="flag-progress-bar">
+            <div id="flag-progress-fill" class="flag-progress-fill" style="width:0%"></div>
+          </div>
+          <span id="flag-progress-text" class="flag-progress-text">0 / 48 flags</span>
+        </div>
+      </div>
+      <div class="flag-submit-body">
+        <div class="flag-submit-form">
+          <input type="text" id="flag-input" class="flag-input mono-input" placeholder="FLAG{...}" autocomplete="off">
+          <button class="form-btn" onclick="submitFlag()">Submit Flag</button>
+        </div>
+        <div id="flag-result" class="flag-result" style="display:none;"></div>
+      </div>
     </div>
 
     <!-- ── Request History ────────────────────────── -->
@@ -1419,6 +1454,13 @@ curl -s -X POST http://TARGET/portal/api/shop/bulk-purchase \
     });
   });
 
+  // ── Trace Context (W3C traceparent) ────────────
+  function makeTraceparent() {
+    var traceId = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(function(b) { return b.toString(16).padStart(2, "0"); }).join("");
+    var spanId = Array.from(crypto.getRandomValues(new Uint8Array(8))).map(function(b) { return b.toString(16).padStart(2, "0"); }).join("");
+    return "00-" + traceId + "-" + spanId + "-01";
+  }
+
   // ── Form Submission Handler ────────────────────
   document.querySelectorAll("form.lab-form").forEach(function(form) {
     form.addEventListener("submit", function(e) {
@@ -1448,7 +1490,7 @@ curl -s -X POST http://TARGET/portal/api/shop/bulk-purchase \
     }
 
     // Build request options
-    var opts = { method: method, headers: {} };
+    var opts = { method: method, headers: { "traceparent": makeTraceparent() } };
 
     if (method === "POST" && contentType === "json") {
       var body = {};
@@ -1478,6 +1520,15 @@ curl -s -X POST http://TARGET/portal/api/shop/bulk-purchase \
       opts.redirect = "manual";
     }
 
+    // Button loading state
+    var btn = form.querySelector('button[type="submit"]');
+    var originalText = btn ? btn.textContent : "";
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Sending...";
+      btn.classList.add("loading");
+    }
+
     // Submit
     var startTime = performance.now();
     showLoading(method, url);
@@ -1504,6 +1555,13 @@ curl -s -X POST http://TARGET/portal/api/shop/bulk-purchase \
       .catch(function(err) {
         var elapsed = Math.round(performance.now() - startTime);
         handleResponse(method, url, 0, null, "Network Error: " + err.message, elapsed);
+      })
+      .finally(function() {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = originalText;
+          btn.classList.remove("loading");
+        }
       });
   }
 
@@ -1514,15 +1572,28 @@ curl -s -X POST http://TARGET/portal/api/shop/bulk-purchase \
     document.getElementById("resp-time").textContent = "";
     document.getElementById("resp-dot").className = "status-dot";
     document.getElementById("resp-output").textContent = "Sending request...";
-    document.getElementById("resp-flags").style.display = "none";
   }
 
   function handleResponse(method, url, status, headers, body, elapsed) {
     // Update response panel
+    var respPanel = document.getElementById("response-panel");
     document.getElementById("resp-method").textContent = method;
     document.getElementById("resp-url").textContent = url;
     document.getElementById("resp-status").textContent = status || "ERR";
     document.getElementById("resp-time").textContent = elapsed + "ms";
+
+    // Display trace ID from response headers if available
+    var traceIdEl = document.getElementById("resp-trace-id");
+    if (traceIdEl && headers) {
+      var traceId = headers.get("X-Trace-Id");
+      if (traceId) {
+        traceIdEl.textContent = "Trace: " + traceId.substring(0, 16) + "...";
+        traceIdEl.title = traceId;
+        traceIdEl.style.display = "inline";
+      } else {
+        traceIdEl.style.display = "none";
+      }
+    }
 
     var dot = document.getElementById("resp-dot");
     dot.className = "status-dot " + (status >= 200 && status < 400 ? "ok" : "err");
@@ -1534,16 +1605,6 @@ curl -s -X POST http://TARGET/portal/api/shop/bulk-purchase \
     } catch(e) {}
     document.getElementById("resp-output").textContent = formatted;
 
-    // Check for flags
-    var flagMatch = body.match(/FLAG\{[^}]+\}/g);
-    var flagPanel = document.getElementById("resp-flags");
-    if (flagMatch) {
-      flagPanel.style.display = "block";
-      flagPanel.textContent = "FLAG CAPTURED: " + flagMatch.join(", ");
-    } else {
-      flagPanel.style.display = "none";
-    }
-
     // Add to history
     requestHistory.unshift({
       time: new Date().toLocaleTimeString(),
@@ -1554,6 +1615,13 @@ curl -s -X POST http://TARGET/portal/api/shop/bulk-purchase \
       body: formatted
     });
     renderHistory();
+
+    // Auto-scroll to response panel
+    respPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+
+    // Flash animation on new response
+    respPanel.classList.add("flash");
+    setTimeout(function() { respPanel.classList.remove("flash"); }, 600);
   }
 
   function clearResponse() {
@@ -1563,7 +1631,8 @@ curl -s -X POST http://TARGET/portal/api/shop/bulk-purchase \
     document.getElementById("resp-time").textContent = "-";
     document.getElementById("resp-dot").className = "status-dot";
     document.getElementById("resp-output").textContent = "Response cleared.";
-    document.getElementById("resp-flags").style.display = "none";
+    var traceIdEl = document.getElementById("resp-trace-id");
+    if (traceIdEl) traceIdEl.style.display = "none";
   }
   window.clearResponse = clearResponse;
 
@@ -1611,17 +1680,8 @@ curl -s -X POST http://TARGET/portal/api/shop/bulk-purchase \
     document.getElementById("resp-dot").className = "status-dot " + (entry.status >= 200 && entry.status < 400 ? "ok" : "err");
     document.getElementById("resp-output").textContent = entry.body;
 
-    var flagMatch = entry.body.match(/FLAG\{[^}]+\}/g);
-    var flagPanel = document.getElementById("resp-flags");
-    if (flagMatch) {
-      flagPanel.style.display = "block";
-      flagPanel.textContent = "FLAG CAPTURED: " + flagMatch.join(", ");
-    } else {
-      flagPanel.style.display = "none";
-    }
-
     // Scroll to response panel
-    document.getElementById("response-panel").scrollIntoView({ behavior: "smooth" });
+    document.getElementById("response-panel").scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   // ── Guide Toggles ─────────────────────────────
@@ -1654,6 +1714,90 @@ curl -s -X POST http://TARGET/portal/api/shop/bulk-purchase \
       setTimeout(function() { btn.textContent = "Copy"; }, 1500);
     });
   };
+
+  // ── Flag Submission ──────────────────────────
+  var flagsCaptured = JSON.parse(localStorage.getItem("sk_flags") || "[]");
+  updateFlagProgress();
+
+  window.submitFlag = function() {
+    var input = document.getElementById("flag-input");
+    var result = document.getElementById("flag-result");
+    var flag = input.value.trim();
+    if (!flag) return;
+
+    fetch("/portal/api/flags/submit", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({flag: flag})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      result.style.display = "block";
+      if (data.status === "correct") {
+        result.className = "flag-result flag-correct";
+        result.innerHTML = "&#9989; " + data.message + " <span class='flag-points'>+" + data.points + " pts</span>";
+        if (flagsCaptured.indexOf(flag) === -1) {
+          flagsCaptured.push(flag);
+          localStorage.setItem("sk_flags", JSON.stringify(flagsCaptured));
+          updateFlagProgress();
+          // Mark module complete if applicable
+          if (data.module) markModuleComplete(data.module);
+        }
+        input.value = "";
+      } else {
+        result.className = "flag-result flag-incorrect";
+        result.textContent = "\u2718 " + data.message;
+      }
+      setTimeout(function() { result.style.display = "none"; }, 5000);
+    });
+  };
+
+  // Allow Enter key to submit flag
+  document.getElementById("flag-input").addEventListener("keydown", function(e) {
+    if (e.key === "Enter") submitFlag();
+  });
+
+  function updateFlagProgress() {
+    var total = 48;
+    var count = flagsCaptured.length;
+    var pct = Math.round((count / total) * 100);
+    var fill = document.getElementById("flag-progress-fill");
+    var text = document.getElementById("flag-progress-text");
+    if (fill) fill.style.width = pct + "%";
+    if (text) text.textContent = count + " / " + total + " flags";
+
+    // Also update lab progress bar if it exists
+    var labFill = document.getElementById("lab-progress-fill");
+    var labText = document.getElementById("lab-progress-text");
+    if (labFill) labFill.style.width = pct + "%";
+    if (labText) labText.textContent = count + " / " + total + " flags captured";
+  }
+
+  function markModuleComplete(moduleName) {
+    var completed = JSON.parse(localStorage.getItem("sk_modules") || "{}");
+    completed[moduleName] = true;
+    localStorage.setItem("sk_modules", JSON.stringify(completed));
+    updateModuleProgress();
+  }
+
+  function updateModuleProgress() {
+    var completed = JSON.parse(localStorage.getItem("sk_modules") || "{}");
+    var count = Object.keys(completed).length;
+    var total = 12;
+    var el = document.getElementById("module-progress-text");
+    if (el) el.textContent = count + " / " + total + " modules completed";
+    var fill = document.getElementById("module-progress-fill");
+    if (fill) fill.style.width = Math.round((count / total) * 100) + "%";
+    // Mark individual cards
+    Object.keys(completed).forEach(function(mod) {
+      document.querySelectorAll(".module-card").forEach(function(card) {
+        var title = card.querySelector("h3");
+        if (title && title.textContent.trim() === mod) {
+          card.classList.add("module-completed");
+        }
+      });
+    });
+  }
 
   // ── Detection Rules Loader ─────────────────────
   function loadDetectionRules() {
@@ -1697,7 +1841,6 @@ curl -s -X POST http://TARGET/portal/api/shop/bulk-purchase \
     var html = '<div class="trace-entries">';
     requestHistory.forEach(function(entry, idx) {
       var isAttack = entry.body && (
-        entry.body.indexOf("FLAG{") !== -1 ||
         entry.body.indexOf("security") !== -1 ||
         entry.body.indexOf("attack") !== -1 ||
         entry.status >= 400
@@ -1724,6 +1867,103 @@ curl -s -X POST http://TARGET/portal/api/shop/bulk-purchase \
     if (!str) return "";
     return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
+
+  // ── Practice Lab Module Metadata ─────────────
+  var moduleData = {
+    "mod-auth": {
+      difficulty: 2, objectives: ["Understand authentication bypass techniques", "Discover JWT weaknesses", "Identify session management flaws"],
+      hints: ["Try common default credentials", "Inspect the JWT token structure — what algorithms are accepted?", "Check if you can control the session ID via query parameters"]
+    },
+    "mod-users": {
+      difficulty: 1, objectives: ["Learn IDOR (Insecure Direct Object Reference)", "Discover information disclosure via debug mode"],
+      hints: ["Try accessing user IDs other than your own", "Add ?debug=true to the request", "Look for password hashes in debug responses"]
+    },
+    "mod-treasury": {
+      difficulty: 3, objectives: ["Exploit SQL injection in search endpoints", "Understand IDOR in financial records", "Learn negative value business logic flaws"],
+      hints: ["Try a single quote in the search field", "Use UNION SELECT to extract data from other tables", "What happens when you transfer a negative amount?"]
+    },
+    "mod-messages": {
+      difficulty: 2, objectives: ["Discover stored XSS vulnerabilities", "Access messages belonging to other users"],
+      hints: ["Try HTML tags in the message subject or body", "Can you read messages not addressed to you?", "Inject a script tag to simulate cookie theft"]
+    },
+    "mod-files": {
+      difficulty: 3, objectives: ["Exploit path traversal / LFI", "Understand directory listing attacks"],
+      hints: ["Try ../ sequences in the file path", "Target sensitive files like /etc/passwd or .env", "Check what happens with directory listing endpoints"]
+    },
+    "mod-network": {
+      difficulty: 3, objectives: ["Perform SSRF (Server-Side Request Forgery)", "Access cloud metadata endpoints", "Exploit webhook functionality"],
+      hints: ["Try internal IP addresses (10.x, 192.168.x, 169.254.x)", "Cloud metadata lives at 169.254.169.254", "Can you use the webhook to reach internal services?"]
+    },
+    "mod-system": {
+      difficulty: 4, objectives: ["Execute OS commands via injection", "Exploit server-side template injection (SSTI)", "Learn NoSQL injection techniques"],
+      hints: ["Command separators: ;, |, &&, ||", "Try template expressions like {{7*7}}", "For SSTI, explore __class__.__mro__ chains"]
+    },
+    "mod-admin": {
+      difficulty: 5, objectives: ["Bypass JWT authentication", "Access admin-only endpoints", "Discover hidden debug endpoints"],
+      hints: ["Craft a JWT with algorithm set to 'none'", "The admin panel requires role=superadmin", "Debug endpoints often leak crypto keys and environment variables"]
+    },
+    "mod-goad": {
+      difficulty: 5, objectives: ["Simulate Active Directory attacks", "Understand Kerberoasting and DCSync", "Query MSSQL databases via GOAD integration"],
+      hints: ["Kerberoasting extracts service tickets for offline cracking", "DCSync replicates domain controller data", "GOAD databases may accept injection in query parameters"]
+    },
+    "mod-import": {
+      difficulty: 3, objectives: ["Exploit insecure deserialization (Pickle)", "Discover prototype pollution via JSON imports"],
+      hints: ["Python pickle can execute arbitrary code during deserialization", "Try base64-encoding a pickle payload", "JSON imports may allow __proto__ pollution"]
+    },
+    "mod-misc": {
+      difficulty: 1, objectives: ["Discover open redirect vulnerabilities", "Enumerate detection rules and API endpoints"],
+      hints: ["Try redirecting to an external domain", "Open redirects can be used for phishing", "The detection rules API reveals what the SOC monitors"]
+    },
+    "mod-shop": {
+      difficulty: 3, objectives: ["Exploit e-commerce logic flaws", "Perform SQL injection in product search", "Discover price manipulation and IDOR vulnerabilities"],
+      hints: ["Try negative quantities or zero-price purchases", "SQL injection works in the search and order history fields", "Can you access item details for restricted products?"]
+    }
+  };
+
+  // Inject difficulty dots and learning content into each module card
+  Object.keys(moduleData).forEach(function(modId) {
+    var card = document.getElementById(modId);
+    if (!card) return;
+    var data = moduleData[modId];
+    var header = card.querySelector(".module-header");
+
+    // Add difficulty dots after badges
+    var badges = header.querySelector(".card-badges");
+    if (badges) {
+      var dots = '<span class="difficulty-dots" title="Difficulty: ' + data.difficulty + '/5">';
+      for (var i = 1; i <= 5; i++) {
+        dots += '<span class="diff-dot' + (i <= data.difficulty ? ' filled' : '') + '"></span>';
+      }
+      dots += '</span>';
+      badges.insertAdjacentHTML("beforeend", dots);
+    }
+
+    // Add learning objectives and hints after module-body
+    var body = card.querySelector(".module-body");
+    if (body) {
+      var objHtml = '<div class="module-learn">' +
+        '<div class="learn-toggle" onclick="this.parentElement.classList.toggle(\'open\')">' +
+          '<span class="chevron">&#9654;</span> Learning Objectives' +
+        '</div>' +
+        '<div class="learn-content"><ul>' +
+          data.objectives.map(function(o) { return '<li>' + o + '</li>'; }).join('') +
+        '</ul></div>' +
+      '</div>';
+
+      var hintHtml = '<div class="module-hints">';
+      data.hints.forEach(function(hint, idx) {
+        hintHtml += '<button class="hint-btn" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display===\'block\'?\'none\':\'block\';this.classList.toggle(\'revealed\')">Hint ' + (idx + 1) + '</button>' +
+          '<div class="hint-text" style="display:none;">' + hint + '</div>';
+      });
+      hintHtml += '</div>';
+
+      body.insertAdjacentHTML("afterend", objHtml + hintHtml);
+    }
+  });
+
+  // Initialize module progress from localStorage
+  updateModuleProgress();
+  updateFlagProgress();
 
   // ── Init ───────────────────────────────────────
   loadDetectionRules();
@@ -1755,17 +1995,9 @@ curl -s -X POST http://TARGET/portal/api/shop/bulk-purchase \
   function shopShowResponse(data) {
     var el = document.getElementById("shop-response");
     var body = document.getElementById("shop-response-body");
-    var flagEl = document.getElementById("shop-response-flag");
     el.style.display = "flex";
     var txt = typeof data === "string" ? data : JSON.stringify(data, null, 2);
     body.textContent = txt;
-    var flags = txt.match(/FLAG\{[^}]+\}/g);
-    if (flags) {
-      flagEl.style.display = "block";
-      flagEl.textContent = "FLAG CAPTURED: " + flags.join(", ");
-    } else {
-      flagEl.style.display = "none";
-    }
   }
 
   // ── Load Products ─────────────────────────────
@@ -1863,7 +2095,7 @@ curl -s -X POST http://TARGET/portal/api/shop/bulk-purchase \
           '<div class="shop-product-house">' + escapeHtml(item.house || "") + '</div>' +
           '<div class="shop-product-name">' + escapeHtml(item.name) + '</div>' +
           '<div class="shop-product-stars">' + shopRenderStars(rating) + '<span class="star-count">' + rating.toFixed(1) + '</span></div>' +
-          '<div class="shop-product-desc">' + escapeHtml((item.description || "").replace(/FLAG\{[^}]+\}/g, "***")) + '</div>' +
+          '<div class="shop-product-desc">' + escapeHtml(item.description || "") + '</div>' +
           '<div class="shop-product-footer">' +
             '<div class="shop-product-price">' + item.price.toLocaleString() + ' <small>gold</small></div>' +
             '<span class="shop-product-stock' + stockClass + '">' + stockText + '</span>' +
@@ -1886,7 +2118,7 @@ curl -s -X POST http://TARGET/portal/api/shop/bulk-purchase \
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({username: shopCurrentUser, item_id: itemId, quantity: 1})
     }).then(function(r) { return r.json(); }).then(function(data) {
-      if (data.flag || (JSON.stringify(data).indexOf("FLAG{") !== -1)) shopShowResponse(data);
+      shopShowResponse(data);
     });
     shopUpdateCartUI();
     // Bounce animation on badge
@@ -1974,18 +2206,13 @@ curl -s -X POST http://TARGET/portal/api/shop/bulk-purchase \
                 '<h5>Write a Review</h5>' +
                 '<div class="form-group"><label>Your Name</label><input type="text" id="review-author" placeholder="e.g. jon.snow" autocomplete="off"></div>' +
                 '<div class="form-group"><label>Rating</label><select id="review-rating"><option value="5">5 Stars</option><option value="4">4 Stars</option><option value="3">3 Stars</option><option value="2">2 Stars</option><option value="1">1 Star</option></select></div>' +
-                '<div class="form-group"><label>Comment (HTML supported)</label><textarea id="review-comment" rows="2" placeholder="Great product! Or try: &lt;script&gt;alert(1)&lt;/script&gt;"></textarea></div>' +
+                '<div class="form-group"><label>Comment</label><textarea id="review-comment" rows="2" placeholder="Write your review..."></textarea></div>' +
                 '<button class="shop-btn-sm" onclick="shopSubmitReview(' + itemId + ')">Submit Review</button>' +
               '</div>' +
             '</div>';
 
             document.getElementById("shop-product-body").innerHTML = html;
             document.getElementById("shop-product-modal").style.display = "flex";
-
-            // Show flags in response inspector if present
-            if (JSON.stringify(data).indexOf("FLAG{") !== -1) {
-              shopShowResponse(data);
-            }
           });
       });
   };
@@ -2034,9 +2261,7 @@ curl -s -X POST http://TARGET/portal/api/shop/bulk-purchase \
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify({username: shopCurrentUser, item_id: itemId, quantity: qty})
     }).then(function(r) { return r.json(); }).then(function(data) {
-      if (data.flag || (JSON.stringify(data).indexOf("FLAG{") !== -1)) {
-        shopShowResponse(data);
-      }
+      shopShowResponse(data);
     });
 
     shopUpdateCartUI();
@@ -2147,7 +2372,6 @@ curl -s -X POST http://TARGET/portal/api/shop/bulk-purchase \
         msg.textContent = data.message || "Invalid coupon.";
         msg.className = "shop-coupon-msg error";
       }
-      if (data.flag) shopShowResponse(data);
     })
     .catch(function() {
       msg.textContent = "Error applying coupon.";
@@ -2168,7 +2392,6 @@ curl -s -X POST http://TARGET/portal/api/shop/bulk-purchase \
       .then(function(data) {
         document.getElementById("shop-sidebar-wallet").textContent = (data.balance || 0).toLocaleString();
         document.getElementById("shop-wallet-bal").textContent = (data.balance || 0).toLocaleString();
-        if (data.flag) shopShowResponse(data);
       });
   };
 
@@ -2197,9 +2420,8 @@ curl -s -X POST http://TARGET/portal/api/shop/bulk-purchase \
         var el = document.getElementById("shop-wallet-result");
         el.innerHTML = '<div style="background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:0.85rem;">' +
           '<strong>' + escapeHtml(user) + '</strong>: ' + (data.balance || 0).toLocaleString() + ' gold dragons' +
-          (data.flag ? '<br><span style="color:var(--success);font-weight:700;">' + data.flag + '</span>' : '') +
         '</div>';
-        if (data.flag) shopShowResponse(data);
+        shopShowResponse(data);
       });
   };
 
@@ -2218,9 +2440,8 @@ curl -s -X POST http://TARGET/portal/api/shop/bulk-purchase \
       var el = document.getElementById("shop-transfer-result");
       el.innerHTML = '<div style="background:var(--bg-primary);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:0.85rem;">' +
         escapeHtml(data.message || "Transfer complete") +
-        (data.flag ? '<br><span style="color:var(--success);font-weight:700;">' + data.flag + '</span>' : '') +
       '</div>';
-      if (data.flag) shopShowResponse(data);
+      shopShowResponse(data);
     });
   };
 
@@ -2387,7 +2608,6 @@ curl -s -X POST http://TARGET/portal/api/shop/bulk-purchase \
             '<div>Payment: ' + escapeHtml((order.payment || {}).card_type || "Card") + ' ending ' + escapeHtml((order.payment || {}).last4 || "****") + '</div>' +
             '<div style="color:var(--gold);font-weight:700;margin-top:8px;">Total: ' + (order.total || 0).toLocaleString() + ' gold dragons</div>' +
           '</div>' +
-          (data.flag ? '<div class="flag-banner" style="margin-top:16px;">' + data.flag + '</div>' : '') +
         '</div>';
         document.getElementById("checkout-confirm-body").innerHTML = confHtml;
         shopCheckoutStep(3);

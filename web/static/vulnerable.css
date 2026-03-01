@@ -2375,3 +2375,290 @@ body {
 .disclaimer-content p {
   margin: 6px 0;
 }
+
+/* ── Phase 0: Button Loading State ──────────────── */
+.form-btn.loading {
+  opacity: 0.7;
+  cursor: wait;
+  position: relative;
+}
+.form-btn.loading::after {
+  content: "";
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-left: 8px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: btn-spin 0.6s linear infinite;
+  vertical-align: middle;
+}
+@keyframes btn-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Phase 0: Response Panel Flash ──────────────── */
+.response-panel.flash {
+  animation: resp-flash 0.6s ease-out;
+}
+@keyframes resp-flash {
+  0%   { box-shadow: 0 0 0 0 rgba(218,165,32,0.6); border-color: rgba(218,165,32,0.8); }
+  50%  { box-shadow: 0 0 20px 4px rgba(218,165,32,0.3); border-color: rgba(218,165,32,0.6); }
+  100% { box-shadow: none; border-color: rgba(48,54,61,0.6); }
+}
+
+/* ── Phase 5: Practice Lab Enhancement ──────────── */
+.lab-progress-bar-container {
+  background: var(--bg-secondary);
+  border: 1px solid rgba(48,54,61,0.6);
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+}
+.lab-progress-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.lab-progress-track {
+  height: 6px;
+  background: rgba(48,54,61,0.6);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.lab-progress-track-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold), #e6c200);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+/* Difficulty dots */
+.difficulty-dots {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.diff-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(48,54,61,0.6);
+  border: 1px solid rgba(139,148,158,0.3);
+}
+.diff-dot.filled {
+  background: var(--gold);
+  border-color: var(--gold);
+}
+
+/* Learning objectives */
+.module-learn {
+  border-top: 1px solid rgba(48,54,61,0.4);
+  padding: 0;
+}
+.learn-toggle {
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  user-select: none;
+  transition: color 0.2s;
+}
+.learn-toggle:hover {
+  color: var(--text-primary);
+}
+.learn-content {
+  display: none;
+  padding: 0 14px 10px;
+}
+.module-learn.open .learn-content {
+  display: block;
+}
+.module-learn.open .chevron {
+  display: inline-block;
+  transform: rotate(90deg);
+}
+.learn-content ul {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+/* Hints */
+.module-hints {
+  border-top: 1px solid rgba(48,54,61,0.4);
+  padding: 10px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: flex-start;
+}
+.hint-btn {
+  font-size: 0.75rem;
+  padding: 4px 10px;
+  background: rgba(48,54,61,0.4);
+  border: 1px solid rgba(48,54,61,0.6);
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.hint-btn:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.hint-btn.revealed {
+  background: rgba(218,165,32,0.1);
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.hint-text {
+  width: 100%;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  padding: 6px 10px;
+  background: rgba(218,165,32,0.05);
+  border-radius: 4px;
+  margin-top: 2px;
+  line-height: 1.5;
+}
+
+/* Module completion */
+.module-card.module-completed {
+  border-color: rgba(46,160,67,0.4);
+}
+.module-card.module-completed .module-header {
+  background: rgba(46,160,67,0.08);
+}
+.module-card.module-completed .module-header::after {
+  content: "\2713";
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  font-size: 1rem;
+  color: var(--success);
+  font-weight: 700;
+}
+.module-header {
+  position: relative;
+}
+
+/* ── Phase 3: Shop Trust Bar ────────────────────── */
+.shop-trust-bar {
+  display: flex;
+  justify-content: center;
+  gap: 32px;
+  padding: 10px 20px;
+  background: rgba(218,165,32,0.06);
+  border-bottom: 1px solid rgba(48,54,61,0.3);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.trust-item {
+  white-space: nowrap;
+}
+
+/* ── Phase 2: Flag Submission Panel ──────────────── */
+.flag-submit-panel {
+  background: var(--bg-secondary);
+  border: 1px solid rgba(48,54,61,0.6);
+  border-radius: 10px;
+  margin: 16px 0;
+  overflow: hidden;
+}
+.flag-submit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(218,165,32,0.08);
+  border-bottom: 1px solid rgba(48,54,61,0.4);
+}
+.flag-submit-header h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--gold);
+}
+.flag-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.flag-progress-bar {
+  width: 120px;
+  height: 6px;
+  background: rgba(48,54,61,0.6);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.flag-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold), #e6c200);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+.flag-progress-text {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.flag-submit-body {
+  padding: 12px 16px;
+}
+.flag-submit-form {
+  display: flex;
+  gap: 8px;
+}
+.flag-input {
+  flex: 1;
+  padding: 8px 12px;
+  background: var(--bg-primary);
+  border: 1px solid rgba(48,54,61,0.6);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+.flag-input:focus {
+  outline: none;
+  border-color: var(--gold);
+}
+.flag-result {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.flag-correct {
+  background: rgba(46,160,67,0.15);
+  color: var(--success);
+  border: 1px solid rgba(46,160,67,0.3);
+}
+.flag-incorrect {
+  background: rgba(248,81,73,0.15);
+  color: var(--error);
+  border: 1px solid rgba(248,81,73,0.3);
+}
+.flag-points {
+  float: right;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+/* ── Phase 0: Trace ID display ──────────────────── */
+.resp-trace-id {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  background: rgba(48,54,61,0.4);
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: help;
+}

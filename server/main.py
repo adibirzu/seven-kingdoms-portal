@@ -266,7 +266,11 @@ async def add_process_time_header(request: Request, call_next):
     process_time = time.time() - start_time
     response.headers["X-Process-Time"] = str(process_time)
 
+    # Expose trace ID for frontend correlation
     if current_span and current_span.is_recording():
+        ctx = current_span.get_span_context()
+        if ctx and ctx.trace_id:
+            response.headers["X-Trace-Id"] = format(ctx.trace_id, '032x')
         current_span.set_attribute("http.response.status_code", response.status_code)
         current_span.set_attribute("http.response.time_ms", round(process_time * 1000, 2))
 
@@ -882,7 +886,7 @@ async def got_dragons(request: Request, url: str = "http://meereen.essos.local/a
                     "security.flag_captured": True,
                 }) as span:
                     backend.push_metric("CTFFlagFound", 1.0, {"type": "SSRF_GOT"})
-                    return {"status": "success", "ssrf_response": resp.text[:500], "flag": "FLAG{M07H3R_0F_DR4G0N5_55RF}"}
+                    return {"status": "success", "ssrf_response": resp.text[:500], "internal_data": {"metadata_key": "FLAG{M07H3R_0F_DR4G0N5_55RF}"}}
             return {"status": "success", "data": resp.text}
     except Exception as e:
         # Fallback trace generation for SSRF simulation when target unreachable
@@ -945,9 +949,8 @@ async def upload_avatar(request: Request, file: UploadFile = File(...)):
         if is_webshell or has_script_content:
             return {
                 "status": "success",
-                "message": f"Avatar uploaded: {filename}",
+                "message": f"Avatar uploaded: {filename}. Shell access: FLAG{{W3B_5H3LL_UPL04D3D}}",
                 "path": f"/uploads/avatars/{filename}",
-                "flag": "FLAG{W3B_5H3LL_UPL04D3D}",
                 "warning": "File was saved without validation!",
             }
         return {"status": "success", "message": f"Avatar uploaded: {filename}", "path": f"/uploads/avatars/{filename}"}
@@ -985,8 +988,8 @@ async def nosql_search(request: Request, filter: str = '{"username": "jon.snow"}
                 "results": [
                     {"username": "admin", "role": "superuser", "api_key": "sk-FAKE-ADMIN-KEY"},
                     {"username": "cersei.lannister", "role": "admin", "api_key": "sk-FAKE-CERSEI-KEY"},
+                    {"username": "flag", "role": "FLAG{N0SQL_0P3R4T0R_1NJ3CT10N}", "api_key": "n/a"},
                 ],
-                "flag": "FLAG{N0SQL_0P3R4T0R_1NJ3CT10N}",
                 "query_executed": f"db.users.find({filter})",
             }
         return {"status": "success", "results": [{"username": "jon.snow", "role": "user"}]}
@@ -1023,7 +1026,7 @@ async def header_injection(request: Request, url: str = "/portal/", lang: str = 
                 "status": "success",
                 "redirect_to": url,
                 "injected_header": f"Set-Cookie: session=hijacked" if is_crlf else None,
-                "flag": "FLAG{CRLF_H34D3R_1NJ3CT10N}" if is_crlf else "FLAG{0P3N_R3D1R3CT}",
+                "redirect_info": "FLAG{CRLF_H34D3R_1NJ3CT10N}" if is_crlf else "FLAG{0P3N_R3D1R3CT}",
             }
 
     return {"status": "success", "redirect_to": url, "lang": lang}
