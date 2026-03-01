@@ -128,6 +128,14 @@ function switchTab(tab) {
 }
 
 
+// ── Trace Context (W3C traceparent) ─────────
+function makeTraceparent() {
+  const traceId = Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b => b.toString(16).padStart(2, '0')).join('');
+  const spanId = Array.from(crypto.getRandomValues(new Uint8Array(8))).map(b => b.toString(16).padStart(2, '0')).join('');
+  return '00-' + traceId + '-' + spanId + '-01';
+}
+
+
 // ── API Calls ───────────────────────────────
 async function apiCall(url, opts = {}) {
   const panel = document.getElementById('response-panel');
@@ -143,7 +151,7 @@ async function apiCall(url, opts = {}) {
   requestCount++;
   updateStats();
 
-  const headers = { ...(opts.headers || {}) };
+  const headers = { traceparent: makeTraceparent(), ...(opts.headers || {}) };
   if (authToken && !headers['Authorization']) {
     headers['Authorization'] = 'Bearer ' + authToken;
   }
@@ -159,7 +167,6 @@ async function apiCall(url, opts = {}) {
     try {
       const json = JSON.parse(text);
       formatted = JSON.stringify(json, null, 2);
-      checkForFlags(json);
     } catch {
       formatted = text.substring(0, 5000);
     }
@@ -167,14 +174,12 @@ async function apiCall(url, opts = {}) {
     statusEl.textContent = `HTTP ${resp.status}`;
     statusEl.className = 'status-code ' + (resp.ok ? 'ok' : 'err');
     latencyEl.textContent = `${elapsed}ms`;
-    // Highlight FLAG{} in response
-    content.innerHTML = highlightFlags(formatted);
+    content.textContent = formatted;
 
-    const flags = formatted.match(/FLAG\{[A-Z0-9_]+\}/g) || [];
-    if (!resp.ok || flags.length > 0) {
+    if (!resp.ok) {
       attackCount++;
     }
-    addFeedItem('GET', url, resp.status, elapsed, '', flags);
+    addFeedItem('GET', url, resp.status, elapsed, '', []);
   } catch (e) {
     const elapsed = Math.round(performance.now() - start);
     statusEl.textContent = 'ERROR';
@@ -188,7 +193,7 @@ async function apiCall(url, opts = {}) {
 }
 
 async function apiCallPost(url, body) {
-  const headers = { 'Content-Type': 'application/json' };
+  const headers = { 'Content-Type': 'application/json', traceparent: makeTraceparent() };
   if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
 
   const panel = document.getElementById('response-panel');
@@ -214,7 +219,6 @@ async function apiCallPost(url, body) {
     try {
       const json = JSON.parse(text);
       formatted = JSON.stringify(json, null, 2);
-      checkForFlags(json);
     } catch {
       formatted = text.substring(0, 5000);
     }
@@ -222,13 +226,12 @@ async function apiCallPost(url, body) {
     statusEl.textContent = `HTTP ${resp.status}`;
     statusEl.className = 'status-code ' + (resp.ok ? 'ok' : 'err');
     latencyEl.textContent = `${elapsed}ms`;
-    content.innerHTML = highlightFlags(formatted);
+    content.textContent = formatted;
 
-    const flags = formatted.match(/FLAG\{[A-Z0-9_]+\}/g) || [];
-    if (!resp.ok || flags.length > 0) {
+    if (!resp.ok) {
       attackCount++;
     }
-    addFeedItem('POST', url, resp.status, elapsed, '', flags);
+    addFeedItem('POST', url, resp.status, elapsed, '', []);
   } catch (e) {
     statusEl.textContent = 'ERROR';
     statusEl.className = 'status-code err';
@@ -240,12 +243,6 @@ async function apiCallPost(url, body) {
 }
 
 
-// ── Flag Highlighting ───────────────────────
-function highlightFlags(text) {
-  // Escape HTML first, then highlight flags
-  const escaped = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  return escaped.replace(/(FLAG\{[A-Z0-9_]+\})/g, '<span class="flag-highlight">$1</span>');
-}
 
 
 // ── Special Actions ─────────────────────────
@@ -322,42 +319,24 @@ async function checkGoadConnectivity() {
 }
 
 
-// ── Flag Detection ──────────────────────────
-function checkForFlags(obj) {
-  const str = JSON.stringify(obj);
-  const flagPattern = /FLAG\{[A-Z0-9_]+\}/g;
-  const found = str.match(flagPattern) || [];
-
-  for (const flag of found) {
-    if (!capturedFlags.includes(flag)) {
-      capturedFlags.push(flag);
-      localStorage.setItem('portal_flags', JSON.stringify(capturedFlags));
-      showToast('Flag captured: ' + flag, 'flag');
-    }
-  }
-
-  updateScoreboard();
-}
-
+// ── Scoreboard (fetches from server) ────────
 function updateScoreboard() {
-  const total = 48;  // Total flags available (30 original + 18 marketplace)
-  const captured = capturedFlags.length;
-  const pct = Math.round((captured / total) * 100);
+  fetch('/portal/api/flags/scoreboard')
+    .then(r => r.json())
+    .then(data => {
+      const total = data.total_flags || 48;
+      const captured = capturedFlags.length;
+      const pct = Math.round((captured / total) * 100);
 
-  const progress = document.getElementById('ctf-progress');
-  const score = document.getElementById('ctf-score');
-  const flagsCount = document.getElementById('flags-count');
-  const flagList = document.getElementById('flag-list');
+      const progress = document.getElementById('ctf-progress');
+      const score = document.getElementById('ctf-score');
+      const flagsCount = document.getElementById('flags-count');
 
-  if (progress) progress.style.width = pct + '%';
-  if (score) score.textContent = captured + ' / ' + total;
-  if (flagsCount) flagsCount.textContent = captured;
-
-  if (flagList) {
-    flagList.innerHTML = capturedFlags.map(f =>
-      `<div style="padding:4px 0;font-family:monospace;color:var(--accent)">${f}</div>`
-    ).join('') || '<p style="color:var(--text-muted)">No flags captured yet. Start exploiting vulnerabilities!</p>';
-  }
+      if (progress) progress.style.width = pct + '%';
+      if (score) score.textContent = captured + ' / ' + total;
+      if (flagsCount) flagsCount.textContent = captured;
+    })
+    .catch(() => {});
 }
 
 
@@ -492,8 +471,7 @@ async function runAllAttacks() {
 
       let flags = [];
       try {
-        const json = JSON.parse(text);
-        checkForFlags(json);
+        JSON.parse(text);
         const matches = text.match(/FLAG\{[A-Z0-9_]+\}/g);
         if (matches) flags = matches;
       } catch {}
