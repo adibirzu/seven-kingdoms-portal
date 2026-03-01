@@ -43,6 +43,7 @@ from lxml import etree
 from .vulnerable_portal import router as portal_router
 from .vulnerable_portal import MSSQL_SERVERS, GOAD_MSSQL_USER, GOAD_MSSQL_PASSWORD
 from .shop_enhanced import router as enhanced_router
+from .otel_security import security_span, detection_event
 
 # Load environment variables from .env.local
 load_dotenv(".env.local")
@@ -460,95 +461,146 @@ async def ux_bad_gateway():
 
 # 1. Exfiltration (T1041, T1048)
 @app.post("/api/v1/exfiltration/upload")
-async def exfiltrate_data(target_url: str, payload: str = "staged_data_chunk_001.zip"):
+async def exfiltrate_data(request: Request, target_url: str, payload: str = "staged_data_chunk_001.zip"):
     """
-    Simulates Exfiltration Over C2 Channel.
+    Simulates Exfiltration Over C2 Channel (T1041).
     In a real Caldera attack, the agent would upload data to a listener.
     """
-    backend.push_log("SECURITY", f"EXFILTRATION: Data upload to {target_url}", {"payload": payload})
-    backend.push_metric("ExfiltrationBytes", float(len(payload)), {"target": target_url})
-    
-    # Simulate a successful but suspicious upload
-    async with httpx.AsyncClient() as client:
-        try:
-            # We don't actually hit the target to avoid spamming, but we log the attempt
-            return {"status": "success", "bytes_sent": len(payload), "target": target_url}
-        except Exception:
-            return {"status": "mock_success", "bytes_sent": len(payload)}
+    with security_span(
+        "c2_exfiltration",
+        severity="critical",
+        payload=f"target={target_url} file={payload}",
+        source_ip=request.client.host,
+        extra_attrs={
+            "exfiltration.target_url": target_url,
+            "exfiltration.payload_name": payload,
+            "exfiltration.bytes": len(payload),
+        },
+    ):
+        backend.push_log("SECURITY", f"EXFILTRATION: Data upload to {target_url}",
+                         {"payload": payload, "source_ip": request.client.host})
+        backend.push_metric("ExfiltrationBytes", float(len(payload)), {"target": target_url})
+        return {"status": "success", "bytes_sent": len(payload), "target": target_url}
 
 @app.get("/api/v1/backup/export")
-async def create_staged_backup(include_env: bool = True):
+async def create_staged_backup(request: Request, include_env: bool = True):
     """
     Simulates Archive Collected Data (T1560).
     Aggregates sensitive info into a 'backup' file for later exfiltration.
     """
-    data = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-        "files": ["config.json", "users.db", "certs/private.key"],
-        "size_mb": 42.5
-    }
-    if include_env:
-        data["env_dump"] = base64.b64encode(b"OCI_TENANCY_OCID=ocid1.tenancy...").decode()
-    
-    backend.push_log("SECURITY", "COLLECTION: Sensitive data aggregated for backup", {"staged": True})
-    backend.push_metric("CollectionEvents", 1.0)
-    return data
+    with security_span(
+        "data_collection",
+        severity="high",
+        payload=f"include_env={include_env}",
+        source_ip=request.client.host,
+        extra_attrs={
+            "collection.files_count": 3,
+            "collection.include_env": include_env,
+            "collection.staged": True,
+        },
+    ):
+        data = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "files": ["config.json", "users.db", "certs/private.key"],
+            "size_mb": 42.5
+        }
+        if include_env:
+            data["env_dump"] = base64.b64encode(b"OCI_TENANCY_OCID=ocid1.tenancy...").decode()
+
+        backend.push_log("SECURITY", "COLLECTION: Sensitive data aggregated for backup",
+                         {"staged": True, "source_ip": request.client.host})
+        backend.push_metric("CollectionEvents", 1.0)
+        return data
 
 # 2. Lateral Movement & Discovery (T1021, T1018, T1046)
 @app.get("/api/v1/network/proxy")
-async def network_proxy(url: str = Query(..., description="Internal URL to 'test' connectivity")):
+async def network_proxy(request: Request, url: str = Query(..., description="Internal URL to 'test' connectivity")):
     """
     Vulnerable to SSRF (Server-Side Request Forgery).
     Mimics Lateral Movement by allowing attackers to scan internal OCI networks.
     """
-    backend.push_log("SECURITY", f"LATERAL_MOVEMENT: Internal network probe via SSRF: {url}")
-    
-    # Block obviously malicious external targets but allow internal ones to demonstrate vulnerability
-    if "169.254.169.254" in url:
-        backend.push_metric("AttackCount", 1.0, {"type": "SSRF_IMDS"})
-        return {"error": "Access to IMDS metadata service blocked by security policy.", "blocked": True}
-    
-    try:
-        # Simulate scanning internal host
-        if "10.0." in url:
+    is_internal = any(prefix in url for prefix in ("10.0.", "192.168.", "172.16.", "169.254."))
+    vuln_type = "internal_recon" if is_internal else "ssrf"
+    severity = "critical" if "169.254.169.254" in url else ("high" if is_internal else "medium")
+
+    with security_span(
+        vuln_type,
+        severity=severity,
+        payload=url[:512],
+        source_ip=request.client.host,
+        extra_attrs={
+            "recon.target_url": url,
+            "recon.is_internal": is_internal,
+            "recon.is_imds": "169.254.169.254" in url,
+        },
+    ):
+        backend.push_log("SECURITY", f"LATERAL_MOVEMENT: Internal network probe via SSRF: {url}",
+                         {"source_ip": request.client.host})
+
+        if "169.254.169.254" in url:
+            backend.push_metric("AttackCount", 1.0, {"type": "SSRF_IMDS"})
+            return {"error": "Access to IMDS metadata service blocked by security policy.", "blocked": True}
+
+        if "10.0." in url or "192.168." in url:
             backend.push_metric("InternalScanCount", 1.0)
             return {"status": "connected", "latency": "2ms", "target": url, "service": "SSH-2.0-OpenSSH_8.0"}
-        
+
         return {"status": "error", "message": "Connection refused", "target": url}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
 
 # 3. Credential Access (T1555, T1552)
 @app.get("/api/v1/auth/config")
-async def get_auth_config():
+async def get_auth_config(request: Request):
     """
     Simulates Unsecured Credentials (T1552).
     Leaks mock API keys and configuration details.
     """
-    backend.push_log("SECURITY", "DISCOVERY: Auth configuration accessed")
-    return {
-        "auth_method": "API_KEY",
-        "region": os.getenv("OCI_REGION", "eu-frankfurt-1"),
-        "debug_keys": {
-            "OCI_ID_KEY": "----BEGIN PRIVATE KEY----MIIEvQ...",
-            "DB_PASS": "WinterIsComing2024!"
+    with security_span(
+        "credential_leak",
+        severity="critical",
+        source_ip=request.client.host,
+        extra_attrs={
+            "credential.type": "api_key",
+            "credential.leaked_fields": "OCI_ID_KEY,DB_PASS",
+        },
+    ):
+        backend.push_log("SECURITY", "DISCOVERY: Auth configuration accessed",
+                         {"source_ip": request.client.host})
+        return {
+            "auth_method": "API_KEY",
+            "region": os.getenv("OCI_REGION", "eu-frankfurt-1"),
+            "debug_keys": {
+                "OCI_ID_KEY": "----BEGIN PRIVATE KEY----MIIEvQ...",
+                "DB_PASS": "WinterIsComing2024!"
+            }
         }
-    }
 
 # 4. Persistence (T1543)
 @app.post("/api/v1/system/update")
-async def update_system_service(service_name: str, exec_path: str):
+async def update_system_service(request: Request, service_name: str, exec_path: str):
     """
     Simulates Create or Modify System Process (T1543).
     Mimics an attacker creating a persistence mechanism.
     """
-    backend.push_log("SECURITY", f"PERSISTENCE: System service modified: {service_name}", {"path": exec_path})
-    backend.push_metric("PersistenceAlert", 1.0)
-    
-    if "/tmp/" in exec_path:
-        return {"status": "error", "message": "ExecPath in /tmp/ is highly suspicious!", "detected": True}
-    
-    return {"status": "applied", "service": service_name}
+    is_suspicious = "/tmp/" in exec_path or "/dev/shm/" in exec_path
+    with security_span(
+        "service_persistence",
+        severity="critical" if is_suspicious else "high",
+        payload=f"service={service_name} path={exec_path}",
+        source_ip=request.client.host,
+        extra_attrs={
+            "persistence.service_name": service_name,
+            "persistence.exec_path": exec_path,
+            "persistence.suspicious_path": is_suspicious,
+        },
+    ):
+        backend.push_log("SECURITY", f"PERSISTENCE: System service modified: {service_name}",
+                         {"path": exec_path, "source_ip": request.client.host})
+        backend.push_metric("PersistenceAlert", 1.0)
+
+        if is_suspicious:
+            return {"status": "error", "message": "ExecPath in suspicious directory!", "detected": True}
+
+        return {"status": "applied", "service": service_name}
 
 # --- CTF CHALLENGE VULNERABILITIES ---
 
@@ -854,6 +906,128 @@ async def got_dragons(request: Request, url: str = "http://meereen.essos.local/a
                 return {"status": "success", "data": "Internal Network accessed realistically! FLAG{M07H3R_0F_DR4G0N5_55RF}"}
 
         return {"status": "error", "message": f"Failed to fetch dragon eggs: {str(e)}"}
+
+# --- NEW: Insecure File Upload (A04 Insecure Design / T1105 Ingress Tool Transfer) ---
+
+@app.post("/api/v1/upload/avatar")
+async def upload_avatar(request: Request, file: UploadFile = File(...)):
+    """
+    Insecure file upload — accepts any file type including .php, .jsp, .py web shells.
+    No content-type validation, no file size limit, no filename sanitization.
+    """
+    content = await file.read()
+    filename = file.filename or "unknown"
+
+    # Detect potentially malicious uploads
+    is_webshell = any(ext in filename.lower() for ext in [".php", ".jsp", ".py", ".sh", ".exe", ".bat", ".ps1"])
+    has_script_content = any(sig in content[:512] for sig in [b"<?php", b"<%@", b"#!/", b"import os", b"powershell"])
+
+    vuln_type = "rce" if (is_webshell or has_script_content) else "mass_assignment"
+    severity = "critical" if (is_webshell or has_script_content) else "low"
+
+    with security_span(
+        vuln_type,
+        severity=severity,
+        payload=f"filename={filename} size={len(content)} type={file.content_type}",
+        source_ip=request.client.host,
+        extra_attrs={
+            "upload.filename": filename[:256],
+            "upload.content_type": (file.content_type or "")[:128],
+            "upload.size_bytes": len(content),
+            "upload.is_webshell": is_webshell,
+            "upload.has_script_content": has_script_content,
+        },
+    ):
+        backend.push_log("SECURITY", f"FILE_UPLOAD: {filename} ({len(content)} bytes)",
+                         {"filename": filename, "source_ip": request.client.host})
+        backend.push_metric("FileUpload", 1.0, {"type": "webshell" if is_webshell else "normal"})
+
+        if is_webshell or has_script_content:
+            return {
+                "status": "success",
+                "message": f"Avatar uploaded: {filename}",
+                "path": f"/uploads/avatars/{filename}",
+                "flag": "FLAG{W3B_5H3LL_UPL04D3D}",
+                "warning": "File was saved without validation!",
+            }
+        return {"status": "success", "message": f"Avatar uploaded: {filename}", "path": f"/uploads/avatars/{filename}"}
+
+
+# --- NEW: NoSQL-style Injection (A03 Injection / T1190) ---
+
+@app.get("/api/v1/nosql/search")
+async def nosql_search(request: Request, filter: str = '{"username": "jon.snow"}'):
+    """
+    Simulates NoSQL injection via MongoDB-style query operator injection.
+    Accepts JSON filter that allows $gt, $ne, $regex operators.
+    """
+    is_injection = any(op in filter for op in ["$gt", "$ne", "$regex", "$where", "$or", "$and", "$nin"])
+
+    with security_span(
+        "sqli",  # NoSQL injection maps to same MITRE technique as SQLi
+        severity="critical" if is_injection else "low",
+        payload=filter[:512],
+        source_ip=request.client.host,
+        extra_attrs={
+            "nosql.filter": filter[:512],
+            "nosql.injection_detected": is_injection,
+            "nosql.engine": "mongodb",
+        },
+    ):
+        backend.push_log("SECURITY", f"NOSQL_QUERY: filter={filter[:200]}",
+                         {"source_ip": request.client.host})
+
+        if is_injection:
+            backend.push_metric("CTFFlagFound", 1.0, {"type": "NOSQL_INJECTION"})
+            # Simulate leaked data from operator injection
+            return {
+                "status": "success",
+                "results": [
+                    {"username": "admin", "role": "superuser", "api_key": "sk-FAKE-ADMIN-KEY"},
+                    {"username": "cersei.lannister", "role": "admin", "api_key": "sk-FAKE-CERSEI-KEY"},
+                ],
+                "flag": "FLAG{N0SQL_0P3R4T0R_1NJ3CT10N}",
+                "query_executed": f"db.users.find({filter})",
+            }
+        return {"status": "success", "results": [{"username": "jon.snow", "role": "user"}]}
+
+
+# --- NEW: HTTP Header Injection / Response Splitting (A03 Injection / T1071) ---
+
+@app.get("/api/v1/redirect")
+async def header_injection(request: Request, url: str = "/portal/", lang: str = "en"):
+    """
+    Simulates HTTP header injection via the lang parameter.
+    An attacker can inject CRLF characters to set arbitrary headers or split responses.
+    """
+    is_crlf = any(seq in lang for seq in ["\r\n", "%0d%0a", "%0D%0A", "\\r\\n"])
+    is_external = url.startswith("http") and not any(safe in url for safe in ["localhost", "127.0.0.1", "portal"])
+
+    if is_crlf or is_external:
+        vuln = "open_redirect" if is_external else "log_injection"
+        with security_span(
+            vuln,
+            severity="high",
+            payload=f"url={url} lang={lang}",
+            source_ip=request.client.host,
+            extra_attrs={
+                "header_injection.crlf_detected": is_crlf,
+                "header_injection.external_redirect": is_external,
+                "header_injection.lang_param": lang[:256],
+            },
+        ):
+            backend.push_log("SECURITY", f"HEADER_INJECTION: lang={lang[:100]} url={url[:100]}",
+                             {"source_ip": request.client.host})
+            backend.push_metric("CTFFlagFound", 1.0, {"type": "HEADER_INJECTION"})
+            return {
+                "status": "success",
+                "redirect_to": url,
+                "injected_header": f"Set-Cookie: session=hijacked" if is_crlf else None,
+                "flag": "FLAG{CRLF_H34D3R_1NJ3CT10N}" if is_crlf else "FLAG{0P3N_R3D1R3CT}",
+            }
+
+    return {"status": "success", "redirect_to": url, "lang": lang}
+
 
 # --- Legacy Vulnerabilities (Retained for Compatibility) ---
 

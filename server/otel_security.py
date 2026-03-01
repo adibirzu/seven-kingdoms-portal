@@ -67,6 +67,15 @@ MITRE_MAP: dict[str, dict[str, str]] = {
     "password_reset_osint":    {"id": "T1110.001", "tactic": "credential-access", "name": "Password Guessing"},
     "privilege_escalation":    {"id": "T1068", "tactic": "privilege-escalation", "name": "Exploitation for Privilege Escalation"},
     "prototype_pollution":     {"id": "T1059", "tactic": "execution", "name": "Command and Scripting Interpreter"},
+    # GOAD AD attack techniques
+    "kerberoasting":           {"id": "T1558.003", "tactic": "credential-access", "name": "Kerberoasting"},
+    "dcsync":                  {"id": "T1003.006", "tactic": "credential-access", "name": "OS Credential Dumping: DCSync"},
+    # Caldera / red-team attack simulation
+    "lateral_movement":        {"id": "T1021", "tactic": "lateral-movement", "name": "Remote Services"},
+    "data_collection":         {"id": "T1560", "tactic": "collection", "name": "Archive Collected Data"},
+    "internal_recon":          {"id": "T1046", "tactic": "discovery", "name": "Network Service Discovery"},
+    "c2_exfiltration":         {"id": "T1041", "tactic": "exfiltration", "name": "Exfiltration Over C2 Channel"},
+    "service_persistence":     {"id": "T1543", "tactic": "persistence", "name": "Create or Modify System Process"},
 }
 
 # OWASP Top 10 (2021) mapping
@@ -110,6 +119,15 @@ OWASP_MAP: dict[str, str] = {
     "password_reset_osint": "A07:2021-Auth Failures",
     "privilege_escalation": "A01:2021-Broken Access Control",
     "prototype_pollution": "A03:2021-Injection",
+    # GOAD AD attack techniques (no OWASP category — OS-level)
+    "kerberoasting": "N/A",
+    "dcsync": "N/A",
+    # Caldera / red-team attack simulation
+    "lateral_movement": "N/A",
+    "data_collection": "N/A",
+    "internal_recon": "N/A",
+    "c2_exfiltration": "A01:2021-Broken Access Control",
+    "service_persistence": "A05:2021-Security Misconfiguration",
 }
 
 

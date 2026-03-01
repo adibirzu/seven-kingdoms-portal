@@ -638,6 +638,191 @@ DETECTION_RULES: list[dict] = [
         ),
         "portal_endpoints": ["/portal/api/config/update"],
     },
+    # ── Caldera / Red-Team Attack Simulation ─────────────────────
+    {
+        "id": "SKP-031",
+        "name": "Exfiltration Over C2 Channel — Data Upload",
+        "severity": "critical",
+        "mitre_id": "T1041",
+        "mitre_tactic": "exfiltration",
+        "owasp": "N/A",
+        "attack_type": "c2_exfiltration",
+        "description": "Data exfiltration detected — file staged for upload to external C2 endpoint.",
+        "apm_query": (
+            "show (spans) SpanName as Name, "
+            "SpanAttribute['exfiltration.target_url'] as Target, "
+            "SpanAttribute['exfiltration.bytes'] as Bytes "
+            "where SpanAttribute['security.attack.type'] = 'c2_exfiltration'"
+        ),
+        "la_query": (
+            "'Log Source' = 'OCI APM Trace' "
+            "| where security_attack_type = 'c2_exfiltration' "
+            "| stats sum(exfiltration_bytes) as total_bytes, "
+            "count as upload_count by security_source_ip "
+            "| where upload_count >= 2"
+        ),
+        "portal_endpoints": ["/api/v1/exfiltration/upload"],
+    },
+    {
+        "id": "SKP-032",
+        "name": "Data Collection — Sensitive File Aggregation",
+        "severity": "high",
+        "mitre_id": "T1560",
+        "mitre_tactic": "collection",
+        "owasp": "N/A",
+        "attack_type": "data_collection",
+        "description": "Sensitive data aggregated into archive for staged exfiltration.",
+        "apm_query": (
+            "show (spans) SpanName as Name, "
+            "SpanAttribute['collection.include_env'] as IncludesEnv, "
+            "SpanAttribute['collection.files_count'] as FileCount "
+            "where SpanAttribute['security.attack.type'] = 'data_collection'"
+        ),
+        "la_query": (
+            "'Log Source' = 'OCI APM Trace' "
+            "| where security_attack_type = 'data_collection' "
+            "| stats count as collection_count by security_source_ip "
+            "| where collection_count >= 1"
+        ),
+        "portal_endpoints": ["/api/v1/backup/export"],
+    },
+    {
+        "id": "SKP-033",
+        "name": "Internal Network Reconnaissance — SSRF Probe",
+        "severity": "high",
+        "mitre_id": "T1046",
+        "mitre_tactic": "discovery",
+        "owasp": "N/A",
+        "attack_type": "internal_recon",
+        "description": "Internal network scanning via SSRF proxy endpoint targeting OCI VCN or GOAD subnets.",
+        "apm_query": (
+            "show (spans) SpanName as Name, "
+            "SpanAttribute['recon.target_url'] as TargetURL, "
+            "SpanAttribute['recon.is_imds'] as IsIMDS "
+            "where SpanAttribute['security.attack.type'] = 'internal_recon'"
+        ),
+        "la_query": (
+            "'Log Source' = 'OCI APM Trace' "
+            "| where security_attack_type = 'internal_recon' "
+            "| stats count as probe_count by security_source_ip, recon_target_url "
+            "| where probe_count >= 3"
+        ),
+        "portal_endpoints": ["/api/v1/network/proxy"],
+    },
+    {
+        "id": "SKP-034",
+        "name": "Persistence — Malicious System Service Creation",
+        "severity": "critical",
+        "mitre_id": "T1543",
+        "mitre_tactic": "persistence",
+        "owasp": "N/A",
+        "attack_type": "service_persistence",
+        "description": "New system service created or modified with a suspicious executable path, indicating persistence implant.",
+        "apm_query": (
+            "show (spans) SpanName as Name, "
+            "SpanAttribute['persistence.service_name'] as ServiceName, "
+            "SpanAttribute['persistence.exec_path'] as ExecPath "
+            "where SpanAttribute['security.attack.type'] = 'service_persistence'"
+        ),
+        "la_query": (
+            "'Log Source' = 'OCI APM Trace' "
+            "| where security_attack_type = 'service_persistence' "
+            "| where persistence_exec_path like '%/tmp/%' "
+            "or persistence_exec_path like '%/dev/shm/%' "
+            "| stats count by security_source_ip, persistence_service_name"
+        ),
+        "portal_endpoints": ["/api/v1/system/update"],
+    },
+    {
+        "id": "SKP-035",
+        "name": "Credential Exposure — Unsecured Config Endpoint",
+        "severity": "critical",
+        "mitre_id": "T1552",
+        "mitre_tactic": "credential-access",
+        "owasp": "A02:2021",
+        "attack_type": "credential_leak",
+        "description": "Authentication configuration endpoint accessed, leaking API keys and database credentials.",
+        "apm_query": (
+            "show (spans) SpanName as Name, "
+            "SpanAttribute['credential.leaked_fields'] as LeakedFields "
+            "where SpanAttribute['security.attack.type'] = 'credential_leak' "
+            "and SpanAttribute['credential.type'] = 'api_key'"
+        ),
+        "la_query": (
+            "'Log Source' = 'OCI APM Trace' "
+            "| where security_attack_type = 'credential_leak' "
+            "| where credential_type = 'api_key' "
+            "| stats count as access_count by security_source_ip "
+            "| where access_count >= 1"
+        ),
+        "portal_endpoints": ["/api/v1/auth/config"],
+    },
+    {
+        "id": "SKP-036",
+        "name": "Insecure File Upload — Web Shell Detection",
+        "severity": "critical",
+        "mitre_id": "T1105",
+        "mitre_tactic": "command-and-control",
+        "owasp": "A04:2021",
+        "attack_type": "rce",
+        "description": "Malicious file uploaded with web shell extension (.php, .jsp, .py) or script content signature.",
+        "apm_query": (
+            "show (spans) SpanName as Name, "
+            "SpanAttribute['upload.filename'] as Filename, "
+            "SpanAttribute['upload.is_webshell'] as IsWebShell "
+            "where SpanAttribute['upload.is_webshell'] = 'true' "
+            "or SpanAttribute['upload.has_script_content'] = 'true'"
+        ),
+        "la_query": (
+            "'Log Source' = 'OCI APM Trace' "
+            "| where upload_is_webshell = 'true' "
+            "or upload_has_script_content = 'true' "
+            "| stats count by security_source_ip, upload_filename"
+        ),
+        "portal_endpoints": ["/api/v1/upload/avatar"],
+    },
+    {
+        "id": "SKP-037",
+        "name": "NoSQL Injection — Operator Injection via JSON Filter",
+        "severity": "critical",
+        "mitre_id": "T1190",
+        "mitre_tactic": "initial-access",
+        "owasp": "A03:2021",
+        "attack_type": "sqli",
+        "description": "MongoDB-style query operator ($gt, $ne, $regex) injected in JSON filter parameter.",
+        "apm_query": (
+            "show (spans) SpanName as Name, "
+            "SpanAttribute['nosql.filter'] as Filter "
+            "where SpanAttribute['nosql.injection_detected'] = 'true'"
+        ),
+        "la_query": (
+            "'Log Source' = 'OCI APM Trace' "
+            "| where nosql_injection_detected = 'true' "
+            "| stats count by security_source_ip, nosql_filter"
+        ),
+        "portal_endpoints": ["/api/v1/nosql/search"],
+    },
+    {
+        "id": "SKP-038",
+        "name": "HTTP Header Injection — CRLF Response Splitting",
+        "severity": "high",
+        "mitre_id": "T1071",
+        "mitre_tactic": "command-and-control",
+        "owasp": "A03:2021",
+        "attack_type": "log_injection",
+        "description": "CRLF characters injected in HTTP parameter, enabling response splitting or header injection.",
+        "apm_query": (
+            "show (spans) SpanName as Name, "
+            "SpanAttribute['header_injection.crlf_detected'] as CRLF "
+            "where SpanAttribute['header_injection.crlf_detected'] = 'true'"
+        ),
+        "la_query": (
+            "'Log Source' = 'OCI APM Trace' "
+            "| where header_injection_crlf_detected = 'true' "
+            "| stats count by security_source_ip"
+        ),
+        "portal_endpoints": ["/api/v1/redirect"],
+    },
     # ── Meta / Aggregate Rules ────────────────────────────────────
     {
         "id": "SKP-020",
