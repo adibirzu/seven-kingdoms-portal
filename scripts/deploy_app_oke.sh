@@ -100,14 +100,14 @@ fi
 
 # --- Step 5: Wait for rollout ---
 echo "  Waiting for deployment rollout..."
-NAMESPACE="${K8S_NAMESPACE:-seven-kingdoms-portal}"
-kubectl rollout status deployment/seven-kingdoms-portal \
+NAMESPACE="${K8S_NAMESPACE:-observability-app}"
+kubectl rollout status deployment/observability-app \
     -n "$NAMESPACE" --timeout=300s || true
 
 # --- Step 6: Get LoadBalancer IP ---
 echo "  Waiting for LoadBalancer IP..."
 for i in $(seq 1 60); do
-    LB_IP=$(kubectl get svc seven-kingdoms-portal \
+    LB_IP=$(kubectl get svc observability-app \
         -n "$NAMESPACE" \
         -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || echo "")
     if [[ -n "$LB_IP" ]]; then

@@ -38,6 +38,11 @@ output "kubeconfig_command" {
   value       = var.app_deploy_mode == "oke" ? module.oke[0].kubeconfig_command : null
 }
 
+output "portal_url_command" {
+  description = "Command to get the portal URL (run on deployer VM after deployment completes)"
+  value       = var.app_deploy_mode == "oke" ? "kubectl get svc observability-app -n observability-app -o jsonpath='{.status.loadBalancer.ingress[0].ip}'" : var.app_deploy_mode == "vm" ? "grep APP_URL /opt/skp/.env.local" : null
+}
+
 # --- GOAD ---
 
 output "goad_jumpbox_ip" {
@@ -67,6 +72,7 @@ output "deployment_info" {
     ${var.deploy_observability ? "  - Observability (APM, Logging, Monitoring)" : ""}
       - Application deployment (${var.app_deploy_mode} mode)
     ${var.deploy_waf ? "  - WAF (Web Application Firewall)" : ""}
+    ${var.app_deploy_mode == "oke" ? "\n    OKE Portal Access (after deploy completes):\n      ssh opc@${oci_core_instance.deployer.public_ip} \"kubectl get svc observability-app -n observability-app -o jsonpath='{.status.loadBalancer.ingress[0].ip}'\"\n      Or check: grep APP_URL /opt/skp/.env.local" : ""}
 
     Once complete, the portal URL will be shown in the deploy log.
     ═══════════════════════════════════════════════════════════════
