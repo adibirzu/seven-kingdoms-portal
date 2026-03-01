@@ -70,6 +70,12 @@ MITRE_MAP: dict[str, dict[str, str]] = {
     # GOAD AD attack techniques
     "kerberoasting":           {"id": "T1558.003", "tactic": "credential-access", "name": "Kerberoasting"},
     "dcsync":                  {"id": "T1003.006", "tactic": "credential-access", "name": "OS Credential Dumping: DCSync"},
+    # GOAD ADCS attack techniques (ESC1-ESC8)
+    "adcs_enumerate":          {"id": "T1649", "tactic": "credential-access", "name": "Steal or Forge Authentication Certificates"},
+    "adcs_esc1":               {"id": "T1649", "tactic": "credential-access", "name": "Steal or Forge Authentication Certificates"},
+    "adcs_esc4":               {"id": "T1484.002", "tactic": "defense-evasion", "name": "Domain Trust Modification"},
+    "adcs_esc8":               {"id": "T1557.001", "tactic": "credential-access", "name": "LLMNR/NBT-NS Poisoning and SMB Relay"},
+    "adcs_ca_exploit":         {"id": "T1098", "tactic": "persistence", "name": "Account Manipulation"},
     # Caldera / red-team attack simulation
     "lateral_movement":        {"id": "T1021", "tactic": "lateral-movement", "name": "Remote Services"},
     "data_collection":         {"id": "T1560", "tactic": "collection", "name": "Archive Collected Data"},
@@ -122,6 +128,12 @@ OWASP_MAP: dict[str, str] = {
     # GOAD AD attack techniques (no OWASP category — OS-level)
     "kerberoasting": "N/A",
     "dcsync": "N/A",
+    # GOAD ADCS attack techniques (AD-level, no OWASP mapping)
+    "adcs_enumerate": "N/A",
+    "adcs_esc1": "N/A",
+    "adcs_esc4": "N/A",
+    "adcs_esc8": "N/A",
+    "adcs_ca_exploit": "N/A",
     # Caldera / red-team attack simulation
     "lateral_movement": "N/A",
     "data_collection": "N/A",

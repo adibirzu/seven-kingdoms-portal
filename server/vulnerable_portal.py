@@ -1799,6 +1799,229 @@ async def goad_dcsync_sim(request: Request, target: str = "Administrator"):
         }
 
 
+# ── GOAD ADCS (Active Directory Certificate Services) ─────────────
+
+@router.get("/api/goad/adcs/enumerate")
+async def goad_adcs_enumerate(request: Request):
+    """Simulates Certipy `find -vulnerable` enumeration of ADCS templates.
+
+    Returns vulnerable certificate templates across GOAD domains with ESC findings.
+    """
+    ip, ua = _get_client_info(request)
+
+    with security_span("adcs_enumerate", severity="high",
+                       payload="certipy find -vulnerable -dc-ip 192.168.56.10",
+                       source_ip=ip, user_agent=ua,
+                       flag="FLAG{4DC5_VULN_T3MPL4T35}",
+                       extra_attrs={
+                           "security.attack.mitre_id": "T1649",
+                           "security.attack.mitre_name": "Steal or Forge Authentication Certificates",
+                           "security.adcs.ca_name": "sevenkingdoms-YOURDC01-CA",
+                           "security.adcs.vulnerable_templates": 3,
+                       }) as span:
+        return {
+            "status": "success",
+            "attack": "ADCS Enumeration (T1649)",
+            "ca_name": "sevenkingdoms-YOURDC01-CA",
+            "ca_dns": "kingslanding.sevenkingdoms.local",
+            "vulnerable_templates": [
+                {
+                    "template": "ESC1-VulnerableTemplate",
+                    "esc": "ESC1",
+                    "enrollee_supplies_subject": True,
+                    "enrollment_rights": ["Domain Users"],
+                    "description": "Allows any domain user to request certificates with arbitrary SAN",
+                },
+                {
+                    "template": "ESC4-WeakACL",
+                    "esc": "ESC4",
+                    "write_dacl": True,
+                    "owner": "Domain Users",
+                    "description": "Template ACL grants write access to low-privileged groups",
+                },
+                {
+                    "template": "YOURDC01-CA-SubCA",
+                    "esc": "ESC7",
+                    "manage_ca": True,
+                    "description": "[CLASSIFIED] CA Manager role assigned to Domain Users — "
+                                   "full template control. REF: FLAG{4DC5_VULN_T3MPL4T35}",
+                },
+            ],
+            "total_found": 3,
+            "note": "Run certipy find -vulnerable to discover misconfigurations in production.",
+        }
+
+
+@router.post("/api/goad/adcs/request")
+async def goad_adcs_esc1(request: Request):
+    """Simulates ESC1 — certificate request with enrollee-supplied SAN.
+
+    The attacker requests a certificate impersonating any user (e.g. administrator).
+    """
+    ip, ua = _get_client_info(request)
+    body = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
+    template = body.get("template", "VulnerableTemplate")
+    upn = body.get("upn", "administrator@sevenkingdoms.local")
+
+    with security_span("adcs_esc1", severity="critical",
+                       payload=f"certipy req -template {template} -upn {upn}",
+                       source_ip=ip, user_agent=ua,
+                       flag="FLAG{3SC1_C3RT_1MP3RS0N4T3}",
+                       extra_attrs={
+                           "security.attack.mitre_id": "T1649",
+                           "security.attack.mitre_name": "Steal or Forge Authentication Certificates",
+                           "security.adcs.template": template,
+                           "security.adcs.requested_san": upn,
+                           "security.adcs.impersonation": True,
+                       }) as span:
+        cert_serial = secrets.token_hex(20)
+        return {
+            "status": "success",
+            "attack": "ESC1 — SAN Impersonation (T1649)",
+            "template": template,
+            "requested_san": upn,
+            "certificate": {
+                "serial": cert_serial,
+                "subject": f"CN={upn.split('@')[0]}",
+                "san": f"otherName: UPN={upn}",
+                "issuer": "CN=sevenkingdoms-YOURDC01-CA, DC=sevenkingdoms, DC=local",
+                "validity": "2026-03-01 to 2027-03-01",
+                "pfx_b64_preview": base64.b64encode(
+                    f"[PFX CERTIFICATE DATA — serial {cert_serial}] "
+                    f"Impersonating {upn} via ESC1. FLAG{{3SC1_C3RT_1MP3RS0N4T3}}".encode()
+                ).decode(),
+            },
+            "note": "Use certipy auth -pfx cert.pfx to obtain TGT as the impersonated user.",
+        }
+
+
+@router.post("/api/goad/adcs/relay")
+async def goad_adcs_esc8(request: Request):
+    """Simulates ESC8 — NTLM relay to ADCS HTTP enrollment endpoint.
+
+    Attacker relays NTLM auth from a victim machine to the CA's web enrollment page.
+    """
+    ip, ua = _get_client_info(request)
+    body = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
+    target_ca = body.get("target_ca", "sevenkingdoms-YOURDC01-CA")
+    relay_from = body.get("relay_from", "winterfell.north.sevenkingdoms.local")
+
+    with security_span("adcs_esc8", severity="critical",
+                       payload=f"ntlmrelayx --target http://{target_ca}/certsrv/",
+                       source_ip=ip, user_agent=ua,
+                       flag="FLAG{3SC8_NTLM_R3L4Y_C3RT}",
+                       extra_attrs={
+                           "security.attack.mitre_id": "T1557.001",
+                           "security.attack.mitre_name": "LLMNR/NBT-NS Poisoning and SMB Relay",
+                           "security.adcs.relay_target": target_ca,
+                           "security.adcs.relay_source": relay_from,
+                       }) as span:
+        cert_serial = secrets.token_hex(20)
+        return {
+            "status": "success",
+            "attack": "ESC8 — NTLM Relay to HTTP Enrollment (T1557.001)",
+            "relay_source": relay_from,
+            "relay_target": f"http://{target_ca}/certsrv/certfnsh.asp",
+            "relayed_certificate": {
+                "serial": cert_serial,
+                "subject": f"CN={relay_from.split('.')[0]}$",
+                "type": "Machine certificate via NTLM relay",
+                "issuer": f"CN={target_ca}, DC=sevenkingdoms, DC=local",
+                "pfx_data": f"[RELAYED CERT — {relay_from} -> {target_ca}] "
+                            f"FLAG{{3SC8_NTLM_R3L4Y_C3RT}}",
+            },
+            "note": "ESC8 requires HTTP enrollment enabled on the CA (default in many configs).",
+        }
+
+
+@router.post("/api/goad/adcs/template-modify")
+async def goad_adcs_esc4(request: Request):
+    """Simulates ESC4 — modifying vulnerable template ACLs.
+
+    Attacker with write-DACL on a template enables enrollee-supplies-subject.
+    """
+    ip, ua = _get_client_info(request)
+    body = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
+    template = body.get("template", "SubCA")
+    action = body.get("action", "add_enrollee_supplies_subject")
+
+    with security_span("adcs_esc4", severity="critical",
+                       payload=f"certipy template -template {template} -save-old",
+                       source_ip=ip, user_agent=ua,
+                       flag="FLAG{3SC4_T3MPL4T3_PWN3D}",
+                       extra_attrs={
+                           "security.attack.mitre_id": "T1484.002",
+                           "security.attack.mitre_name": "Domain Trust Modification",
+                           "security.adcs.template_modified": template,
+                           "security.adcs.acl_change": action,
+                       }) as span:
+        return {
+            "status": "success",
+            "attack": "ESC4 — Template ACL Modification (T1484.002)",
+            "template": template,
+            "modification": {
+                "action": action,
+                "before": {
+                    "msPKI-Certificate-Name-Flag": "SUBJECT_ALT_REQUIRE_UPN",
+                    "enrollee_supplies_subject": False,
+                    "enrollment_rights": ["Domain Admins"],
+                },
+                "after": {
+                    "msPKI-Certificate-Name-Flag": "ENROLLEE_SUPPLIES_SUBJECT",
+                    "enrollee_supplies_subject": True,
+                    "enrollment_rights": ["Domain Admins", "Domain Users"],
+                    "modification_marker": "FLAG{3SC4_T3MPL4T3_PWN3D}",
+                },
+            },
+            "note": "Template now allows any Domain User to specify arbitrary SAN. Chain with ESC1.",
+        }
+
+
+@router.get("/api/goad/adcs/ca-config")
+async def goad_adcs_ca_config(request: Request, ca_name: str = "sevenkingdoms-YOURDC01-CA"):
+    """Simulates ESC6/ESC7 — CA configuration exposure and exploitation.
+
+    Returns CA config showing dangerous flags like EDITF_ATTRIBUTESUBJECTALTNAME2.
+    """
+    ip, ua = _get_client_info(request)
+
+    with security_span("adcs_ca_exploit", severity="high",
+                       payload=f"certutil -config {ca_name} -getreg policy\\EditFlags",
+                       source_ip=ip, user_agent=ua,
+                       flag="FLAG{3SC6_C4_M1SC0NF1G}",
+                       extra_attrs={
+                           "security.attack.mitre_id": "T1098",
+                           "security.attack.mitre_name": "Account Manipulation",
+                           "security.adcs.ca_flags": "EDITF_ATTRIBUTESUBJECTALTNAME2|EDITF_ATTRIBUTEENDDATE",
+                           "security.adcs.editf_flag": True,
+                       }) as span:
+        return {
+            "status": "success",
+            "attack": "ESC6/ESC7 — CA Configuration Exploitation (T1098)",
+            "ca_name": ca_name,
+            "ca_config": {
+                "dns_name": "kingslanding.sevenkingdoms.local",
+                "cert_template": "SubCA",
+                "ca_type": "Enterprise Root CA",
+                "edit_flags": [
+                    "EDITF_ATTRIBUTESUBJECTALTNAME2",
+                    "EDITF_ATTRIBUTEENDDATE",
+                    "EDITF_ENABLEAKIKEYID",
+                ],
+                "policy_flags": [
+                    {"flag": "EDITF_ATTRIBUTESUBJECTALTNAME2",
+                     "status": "ENABLED",
+                     "risk": "CRITICAL — allows SAN override in ANY certificate request. "
+                             "Config ref: FLAG{3SC6_C4_M1SC0NF1G}"},
+                ],
+                "officer_rights": ["Domain Admins", "Enterprise Admins", "CA Managers"],
+                "manage_ca_principals": ["Domain Users"],
+            },
+            "note": "ESC6: EDITF_ATTRIBUTESUBJECTALTNAME2 lets any enrollee add arbitrary SAN. "
+                    "ESC7: Manage CA right allows officer approval bypass.",
+        }
+
+
 # ═══════════════════════════════════════════════════════════════════
 # GOAD WEBSHOP — Seven Kingdoms Marketplace
 # Full MSSQL-backed shop with OTel tracing and Log Analytics correlation
@@ -1998,6 +2221,16 @@ SHOP_CATALOG = [
     {"id": 60, "name": "CrackMapExec War Map", "category": "goad_loot", "price": 25000, "house": "Seven Kingdoms",
      "description": "Network reconnaissance tool with saved profiles for all GOAD hosts. FLAG{CME_W4R_M4P}", "stock": 3, "seller": "admin",
      "image": "crackmapexec-war-map.webp", "rating": 4.6},
+    # ── ADCS Loot ──
+    {"id": 61, "name": "Certipy ADCS Scan Report", "category": "goad_loot", "price": 30000, "house": "Seven Kingdoms",
+     "description": "Full ADCS enumeration report with 3 vulnerable templates across sevenkingdoms.local. FLAG{4DC5_VULN_T3MPL4T35}", "stock": 5, "seller": "admin",
+     "image": "certipy-scan-report.webp", "rating": 4.7},
+    {"id": 62, "name": "Forged Administrator Certificate", "category": "goad_loot", "price": 80000, "house": "Seven Kingdoms",
+     "description": "PFX certificate with administrator@sevenkingdoms.local SAN obtained via ESC1. Use certipy auth to get DA.", "stock": 1, "seller": "admin",
+     "image": "forged-admin-cert.webp", "rating": 4.9},
+    {"id": 63, "name": "CA Private Key Backup", "category": "goad_loot", "price": 150000, "house": "Seven Kingdoms",
+     "description": "DPAPI-protected backup of sevenkingdoms-YOURDC01-CA private key. Game over material — forge any certificate.", "stock": 1, "seller": "admin",
+     "image": "ca-private-key-backup.webp", "rating": 5.0},
 ]
 
 # In-memory orders and cart (per-user)
